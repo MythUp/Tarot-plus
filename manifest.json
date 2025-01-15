@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "jeu-tarot-en-ligne.com•Emoji",
+  "version": "1.0.0",
+  "description": "Cette extension permet d'accéder à toute les emot de chat, et ce peu importe le niveau du coueur.",
+  "permissions": ["activeTab", "storage"],
+  "host_permissions": ["https://*.jeu-tarot-en-ligne.com/*"],
+  "background": {
+      "service_worker": "background.js"
+  },
+  "action": {
+      "default_popup": "popup.html",
+      "default_icon": {
+          "16": "icon.png",
+          "48": "icon.png",
+          "128": "icon.png"
+      }
+  },
+  "content_scripts": [
+      {
+          "matches": ["https://*.jeu-tarot-en-ligne.com/*"],
+          "js": ["content.js"]
+      }
+  ]
+}
