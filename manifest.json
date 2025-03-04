@@ -1,25 +1,37 @@
 {
-  "manifest_version": 3,
-  "name": "jeu-tarot-en-ligne.com•Emoji",
-  "version": "2.0.0",
-  "description": "Permet d'accéder à toute les emot de chat sur le site https://jeu-tarot-en-ligne.com.",
-  "permissions": ["activeTab", "storage"],
-  "host_permissions": ["https://*.jeu-tarot-en-ligne.com/*"],
-  "background": {
+    "manifest_version": 3,
+    "name": "jeu-tarot-en-ligne.com•Emoji",
+    "version": "3.0.0",
+    "description": "Permet d'accéder à toutes les emotes de chat et d'en rajouter.",
+    "permissions": [
+      "activeTab",
+      "storage",
+      "scripting"
+    ],
+    "host_permissions": ["https://*.jeu-tarot-en-ligne.com/*"],
+    "background": {
       "service_worker": "background.js"
-  },
-  "action": {
+    },
+    "action": {
       "default_popup": "popup.html",
       "default_icon": {
-          "16": "icon.png",
-          "48": "icon.png",
-          "128": "icon.png"
+        "16": "icon.png",
+        "48": "icon.png",
+        "128": "icon.png"
       }
-  },
-  "content_scripts": [
+    },
+    "content_scripts": [
       {
-          "matches": ["https://*.jeu-tarot-en-ligne.com/*"],
-          "js": ["content.js"]
+        "matches": ["https://*.jeu-tarot-en-ligne.com/*"],
+        "js": ["content.js"],
+        "run_at": "document_end"
       }
-  ]
-}
+    ],
+    "web_accessible_resources": [
+      {
+        "resources": ["emot.js"],
+        "matches": ["https://*.jeu-tarot-en-ligne.com/*"]
+      }
+    ]
+  }
+  

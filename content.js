@@ -18,11 +18,11 @@ chrome.storage.local.get(["enabled", "disabledEmoticons"], (data) => {
                             // Récupérer les émoticônes activées/désactivées
                             const disabledEmoticons = data.disabledEmoticons ?? {};
 
-                            // Ajouter uniquement les émoticônes activées
-                            for (let i = 0; i < 62; i++) {
+                            // Ajouter les émoticônes officielles
+                            for (let i = 0; i < 63; i++) {
                                 const emoticonId = `Emoticon${i}`;
                                 if (!disabledEmoticons[emoticonId]) {
-                                    emoticonHtml += `<img onclick="sendEmot(${i});" src="/images/Emoticon/Emoticon${i}.png?v2" class="emotIcon">`;
+                                    emoticonHtml += `<img onclick="sendEmot(${i});" src="https://amu11er.github.io/Emoticon${i}.png" class="emotIcon">`;
                                 }
                             }
 
@@ -53,6 +53,22 @@ chrome.storage.local.get(["enabled", "disabledEmoticons"], (data) => {
         observer.observe(document.body, { childList: true, subtree: true });
 
         console.log("Observation continue activée sur le DOM.");
+
+        
+        // Créer une balise <script>
+        const scriptElement = document.createElement("script");
+        scriptElement.src = chrome.runtime.getURL("emot.js"); // Charger le script local
+        scriptElement.type = "text/javascript";
+        scriptElement.onload = () => {
+          console.log("Script de remplacement injecté avec succès !");
+        };
+        
+        // Injecter le script juste avant la balise </body>
+        document.body.appendChild(scriptElement);
+        
+        // Confirmer l'injection
+        console.log("Le script est ajouté juste avant la fermeture de </body>");
+
     } else {
         console.log("Extension désactivée.");
     }

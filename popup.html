@@ -4,15 +4,75 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Configuration</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
     <style>
+        /* Styles personnalisés pour remplacer Bootstrap */
+        body {
+            background-color: #f8f9fa; /* Couleur de fond bg-light */
+            color: #212529; /* Couleur du texte text-dark */
+            margin: 0;
+            font-family: Arial, sans-serif;
+        }
+        .container {
+            padding: 1rem; /* p-3 */
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        h5 {
+            margin: 1rem 0;
+            font-size: 1.25rem;
+        }
+        .form-check {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        .form-check-input {
+            width: 52px;
+            height: 20px;
+            position: relative;
+            appearance: none;
+            background-color: #ddd;
+            border-radius: 10px;
+            outline: none;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .form-check-input:checked {
+            background-color: #0d6efd;
+        }
+        .form-check-input::after {
+            content: '';
+            position: absolute;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background-color: white;
+            top: 1px;
+            left: 1px;
+            transition: left 0.3s;
+        }
+        .form-check-input:checked::after {
+            left: 21px;
+        }
+        .form-check-label {
+            cursor: pointer;
+        }
+        hr {
+            border: none;
+            border-top: 1px solid #ddd;
+            margin: 1rem 0;
+        }
         .emoticon-container {
             display: flex;
             flex-direction: column;
             gap: 10px;
             padding: 10px;
             overflow-y: auto;
+            max-height: 300px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: white;
         }
         .emoticon-container img {
             width: 50px;
@@ -25,26 +85,22 @@
         }
     </style>
 </head>
-<body class="bg-light text-dark">
-    <div class="container p-3">
+<body>
+    <div class="container">
         <h5>Configuration des émoticônes</h5>
-        <div class="form-check form-switch">
+        <div class="form-check">
             <input class="form-check-input" type="checkbox" id="toggleExtension">
-            <label class="form-check-label" for="toggleExtension">Activer Extension</label>
+            <label class="form-check-label" for="toggleExtension">Activer l'extension</label>
         </div>
+        <hr>
+        <button id="openSiteButton">Ouvrir le site de tarot</button>
         <hr>
         <h5>Liste des émoticônes</h5>
         <div class="emoticon-container" id="emoticonsList">
             <!-- Les émoticônes seront injectées ici via JavaScript -->
         </div>
     </div>
+    <p>Version <span id="version"></span></p>
     <script src="popup.js"></script>
-    <script>
-        const matchDark = window.matchMedia("(prefers-color-scheme: dark)");
-        if (matchDark.matches) {
-            document.body.classList.replace("bg-light", "bg-dark");
-            document.body.classList.replace("text-dark", "text-light");
-        }
-    </script>
 </body>
 </html>

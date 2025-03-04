@@ -7,10 +7,11 @@ chrome.runtime.onInstalled.addListener(() => {
   });
 });
 
-chrome.action.onClicked.addListener((tab) => {
-    chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      files: ["content.js"]
-    });
+chrome.webNavigation.onCompleted.addListener((details) => {
+  chrome.scripting.executeScript({
+    target: { tabId: details.tabId },
+    files: ["injector.js"]
   });
-  
+}, {
+  url: [{ urlMatches: "https://*.jeu-tarot-en-ligne.com/*" }]
+});

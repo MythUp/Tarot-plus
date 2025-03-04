@@ -4,63 +4,90 @@ document.addEventListener("DOMContentLoaded", () => {
     // Synchroniser la case à cocher avec l'état stocké ou utiliser true par défaut
     chrome.storage.local.get(["enabled", "disabledEmoticons"], (data) => {
         toggleExtension.checked = data.enabled ?? true; // Activer l'extension par défaut
-
-        // Charger les états des émoticônes désactivées
         const disabledEmoticons = data.disabledEmoticons ?? {};
         loadEmoticons(disabledEmoticons);
     });
 
-    // Écouter les changements de la case à cocher pour l'activation/désactivation de l'extension
+    // Écouter les changements de la case à cocher
     toggleExtension.addEventListener("change", () => {
-        chrome.storage.local.set({ enabled: toggleExtension.checked });
+        chrome.storage.local.set({ enabled: toggleExtension.checked }, () => {
+            console.log("État de l'extension mis à jour :", toggleExtension.checked);
+        });
     });
 });
 
+// Charger les émoticônes et les afficher
 function loadEmoticons(disabledEmoticons) {
     const emoticonsList = document.getElementById("emoticonsList");
-    const emoticons = [];
+    if (!emoticonsList) {
+        console.error("Liste des émoticônes introuvable. Vérifiez l'élément avec ID 'emoticonsList'.");
+        return;
+    }
 
-    // Ajouter les émoticônes (ici, nous allons supposer qu'il y en a 62 émoticônes)
-    for (let i = 0; i < 62; i++) {
-        const emoticonId = `Emoticon${i}`;
-        emoticons.push(emoticonId);
+    emoticonsList.innerHTML = ""; // Vider la liste avant de charger
 
-        const item = document.createElement("div");
-        item.classList.add("d-flex", "align-items-center", "mb-2");
-
-        // Créer une émoticône cliquable
-        const imgElement = document.createElement("img");
-        imgElement.src = `https://jeu-tarot-en-ligne.com/images/Emoticon/Emoticon${i}.png?v2`;
-        imgElement.classList.add("emotIcon");
-        imgElement.dataset.id = emoticonId;
-
-        // Appliquer l'opacité si l'émoticône est désactivée
-        if (disabledEmoticons[emoticonId]) {
-            imgElement.classList.add("inactive");
-        }
-
-        // Ajouter l'élément à la liste
-        emoticonsList.appendChild(imgElement);
-
-        // Ajouter un événement de clic sur l'image pour activer/désactiver
-        imgElement.addEventListener("click", () => toggleEmoticon(emoticonId, imgElement));
+    // Ajouter les émoticônes officielles
+    for (let i = 0; i < 84; i++) {
+        createEmoticon(
+            `Emoticon${i}`,
+            `https://amu11er.github.io/Emoticon${i}.png`,
+            disabledEmoticons,
+            emoticonsList
+        );
     }
 }
 
+// Créer un élément d'émoticône
+function createEmoticon(id, src, disabledEmoticons, container) {
+    const imgElement = document.createElement("img");
+    imgElement.src = src;
+    imgElement.classList.add("emotIcon");
+    imgElement.dataset.id = id;
+
+    // Appliquer l'opacité si désactivé
+    if (disabledEmoticons[id]) {
+        imgElement.classList.add("inactive");
+    }
+
+    // Activer/désactiver au clic
+    imgElement.addEventListener("click", () => toggleEmoticon(id, imgElement));
+    container.appendChild(imgElement);
+}
+
+// Activer ou désactiver une émoticône
 function toggleEmoticon(emoticonId, imgElement) {
     chrome.storage.local.get("disabledEmoticons", (data) => {
         const disabledEmoticons = data.disabledEmoticons ?? {};
 
-        // Si l'émoticône est activée, on la désactive
         if (imgElement.classList.contains("inactive")) {
+            // Activer l'émoticône
             delete disabledEmoticons[emoticonId];
             imgElement.classList.remove("inactive");
         } else {
+            // Désactiver l'émoticône
             disabledEmoticons[emoticonId] = true;
             imgElement.classList.add("inactive");
         }
 
-        // Sauvegarder l'état dans le stockage local
-        chrome.storage.local.set({ disabledEmoticons });
+        // Sauvegarder l'état des émoticônes
+        chrome.storage.local.set({ disabledEmoticons }, () => {
+            console.log(`État de l'émoticône ${emoticonId} mis à jour.`);
+        });
     });
 }
+
+document.addEventListener('DOMContentLoaded', () => {
+    const manifestData = chrome.runtime.getManifest();
+    document.getElementById('version').textContent = manifestData.version;
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+    // Afficher la version dynamiquement
+    const manifestData = chrome.runtime.getManifest();
+    document.getElementById('version').textContent = manifestData.version;
+
+    // Ouvrir le site de tarot dans un nouvel onglet
+    document.getElementById('openSiteButton').addEventListener('click', () => {
+        chrome.tabs.create({ url: 'https://jeu-tarot-en-ligne.com/' });
+    });
+});
