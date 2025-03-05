@@ -18,8 +18,8 @@ chrome.storage.local.get(["enabled", "disabledEmoticons"], (data) => {
                             // Récupérer les émoticônes activées/désactivées
                             const disabledEmoticons = data.disabledEmoticons ?? {};
 
-                            // Ajouter les émoticônes officielles
-                            for (let i = 0; i < 63; i++) {
+                            // Ajouter les émoticônes
+                            for (let i = 0; i < 84; i++) {
                                 const emoticonId = `Emoticon${i}`;
                                 if (!disabledEmoticons[emoticonId]) {
                                     emoticonHtml += `<img onclick="sendEmot(${i});" src="https://amu11er.github.io/Emoticon${i}.png" class="emotIcon">`;

@@ -1,5 +1,6 @@
 document.addEventListener("DOMContentLoaded", () => {
     const toggleExtension = document.getElementById("toggleExtension");
+    const openSiteContainer = document.querySelector(".openSiteButton");
 
     // Synchroniser la case à cocher avec l'état stocké ou utiliser true par défaut
     chrome.storage.local.get(["enabled", "disabledEmoticons"], (data) => {
@@ -8,11 +9,42 @@ document.addEventListener("DOMContentLoaded", () => {
         loadEmoticons(disabledEmoticons);
     });
 
+    // Masquer le bouton si on est déjà sur le site de tarot
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        const activeTab = tabs[0];
+        const urlPattern = /^https:\/\/.*\.jeu-tarot-en-ligne\.com\/.*/;
+
+        if (activeTab && urlPattern.test(activeTab.url)) {
+            openSiteContainer.style.display = "none";
+            console.log("Masquage du bouton d'ouverture de site.");
+        }
+    });
+
     // Écouter les changements de la case à cocher
     toggleExtension.addEventListener("change", () => {
         chrome.storage.local.set({ enabled: toggleExtension.checked }, () => {
             console.log("État de l'extension mis à jour :", toggleExtension.checked);
+
+            // Recharger la page si on est sur le site de tarot
+            chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+                const activeTab = tabs[0];
+                const urlPattern = /^https:\/\/.*\.jeu-tarot-en-ligne\.com\/.*/;
+
+                if (activeTab && urlPattern.test(activeTab.url)) {
+                    chrome.tabs.reload(activeTab.id);
+                    console.log("Page rechargée sur le site de tarot.");
+                }
+            });
         });
+    });
+
+    // Afficher la version dynamiquement
+    const manifestData = chrome.runtime.getManifest();
+    document.getElementById("version").textContent = manifestData.version;
+
+    // Ouvrir le site de tarot dans un nouvel onglet
+    document.getElementById("openSiteButton").addEventListener("click", () => {
+        chrome.tabs.create({ url: "https://jeu-tarot-en-ligne.com/" });
     });
 });
 
@@ -26,7 +58,7 @@ function loadEmoticons(disabledEmoticons) {
 
     emoticonsList.innerHTML = ""; // Vider la liste avant de charger
 
-    // Ajouter les émoticônes officielles
+    // Ajouter les émoticônes
     for (let i = 0; i < 84; i++) {
         createEmoticon(
             `Emoticon${i}`,
@@ -75,19 +107,3 @@ function toggleEmoticon(emoticonId, imgElement) {
         });
     });
 }
-
-document.addEventListener('DOMContentLoaded', () => {
-    const manifestData = chrome.runtime.getManifest();
-    document.getElementById('version').textContent = manifestData.version;
-});
-
-document.addEventListener('DOMContentLoaded', () => {
-    // Afficher la version dynamiquement
-    const manifestData = chrome.runtime.getManifest();
-    document.getElementById('version').textContent = manifestData.version;
-
-    // Ouvrir le site de tarot dans un nouvel onglet
-    document.getElementById('openSiteButton').addEventListener('click', () => {
-        chrome.tabs.create({ url: 'https://jeu-tarot-en-ligne.com/' });
-    });
-});
