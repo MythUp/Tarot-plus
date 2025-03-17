@@ -29,12 +29,46 @@ document.addEventListener("DOMContentLoaded", () => {
             chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
                 const activeTab = tabs[0];
                 const urlPattern = /^https:\/\/.*\.jeu-tarot-en-ligne\.com\/.*/;
-
+            
                 if (activeTab && urlPattern.test(activeTab.url)) {
-                    chrome.tabs.reload(activeTab.id);
-                    console.log("Page rechargée sur le site de tarot.");
+                    // Vérifier si l'input caché est présent avant le rechargement
+                    chrome.scripting.executeScript({
+                        target: { tabId: activeTab.id },
+                        func: () => {
+                            const inputElement = document.getElementById("modeleJeuCartes");
+                            const shouldStartGame = inputElement && inputElement.value === "0";
+                            chrome.storage.local.set({ shouldStartGame });
+                        }
+                            }, () => {
+                                // Recharger la page après avoir vérifié la condition
+                                chrome.tabs.reload(activeTab.id, () => {
+                                    chrome.scripting.executeScript({
+                                        target: { tabId: activeTab.id },
+                                        func: () => {
+                                            chrome.storage.local.get("shouldStartGame", (data) => {
+                                                if (data.shouldStartGame) {
+                                                    console.log("Tentative d'appel de startGame() via la console...");
+                                                    
+                                                    // Ouvrir la console du navigateur (non garanti sur tous les navigateurs)
+                                                    console.log("Pour exécuter startGame() manuellement, tapez : startGame()");
+                                                
+                                                    // Essayer d'exécuter la fonction directement
+                                                    if (typeof window.startGame === 'function') {
+                                                        console.log("%cLa fonction startGame() est prête, exécution en cours...", "color: green; font-weight: bold;");
+                                                        window.startGame();
+                                                    } else {
+                                                        console.warn("La fonction startGame() n'est pas encore disponible !");
+                                                    }
+                                                }
+                                            });
+                                        }
+                                    });
+                                });
+                                
+                            });
                 }
             });
+
         });
     });
 
