@@ -6,12 +6,3 @@ chrome.runtime.onInstalled.addListener(() => {
       console.log("Extension activée par défaut.");
   });
 });
-
-chrome.webNavigation.onCompleted.addListener((details) => {
-  chrome.scripting.executeScript({
-    target: { tabId: details.tabId },
-    files: ["injector.js"]
-  });
-}, {
-  url: [{ urlMatches: "https://*.jeu-tarot-en-ligne.com/*" }]
-});
