@@ -1,14 +1,16 @@
 document.addEventListener("DOMContentLoaded", () => {
     const toggleExtension = document.getElementById("toggleExtension");
+    const toggleShareForum = document.getElementById("toggleShareForum");
     const openSiteContainer = document.querySelector(".openSiteButton");
 
-    // Synchroniser la case à cocher avec l'état stocké ou utiliser true par défaut
-    chrome.storage.local.get(["enabled", "disabledEmoticons"], (data) => {
-        toggleExtension.checked = data.enabled ?? true; // Activer l'extension par défaut
+    // Synchroniser les cases à cocher avec l'état stocké ou utiliser true par défaut
+    chrome.storage.local.get(["enabled", "shareForum", "disabledEmoticons"], (data) => {
+        toggleExtension.checked = data.enabled ?? true;
+        toggleShareForum.checked = data.shareForum ?? true;
         const disabledEmoticons = data.disabledEmoticons ?? {};
         loadEmoticons(disabledEmoticons);
     });
-
+    
     // Masquer le bouton si on est déjà sur le site de tarot
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         const activeTab = tabs[0];
@@ -72,6 +74,13 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     });
 
+    // Écouter les changements de la case à cocher de partage sur le forum
+    toggleShareForum.addEventListener("change", () => {
+        chrome.storage.local.set({ shareForum: toggleShareForum.checked }, () => {
+            console.log("État du bouton de partage mis à jour :", toggleShareForum.checked);
+        });
+    });
+    
     // Afficher la version dynamiquement
     const manifestData = chrome.runtime.getManifest();
     document.getElementById("version").textContent = manifestData.version;

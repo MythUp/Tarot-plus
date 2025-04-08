@@ -1,6 +1,6 @@
-chrome.storage.local.get(["enabled", "disabledEmoticons"], (data) => {
-    if (data.enabled) {
-        console.log("Extension activée");
+chrome.storage.local.get(["enabled", "shareForum", "disabledEmoticons"], (data) => {
+    if (data.enabled && data.shareForum) {
+        console.log("Extension activée et bouton de partage activé");
 
         // Fonction pour remplacer le contenu du <td>, sauf s'il contient un <input> spécifique
         const replaceTdContent = () => {
@@ -15,10 +15,8 @@ chrome.storage.local.get(["enabled", "disabledEmoticons"], (data) => {
                             console.log("Remplacement en cours...");
                             let emoticonHtml = "";
 
-                            // Récupérer les émoticônes activées/désactivées
                             const disabledEmoticons = data.disabledEmoticons ?? {};
 
-                            // Ajouter les émoticônes
                             for (let i = 0; i < 84; i++) {
                                 const emoticonId = `Emoticon${i}`;
                                 if (!disabledEmoticons[emoticonId]) {
@@ -26,17 +24,15 @@ chrome.storage.local.get(["enabled", "disabledEmoticons"], (data) => {
                                 }
                             }
 
-                            // Remplacer le contenu du <td> avec les émoticônes activées
                             tdElement.innerHTML = emoticonHtml;
                         }
-                    }, 500); // Attente de 0.5 seconde
+                    }, 500);
                 } else {
                     console.log("<td> contient <input>, aucun remplacement effectué.");
                 }
             }
         };
 
-        // Configurer un MutationObserver pour surveiller tout le DOM
         const observer = new MutationObserver((mutationsList) => {
             for (const mutation of mutationsList) {
                 if (
@@ -49,27 +45,47 @@ chrome.storage.local.get(["enabled", "disabledEmoticons"], (data) => {
             }
         });
 
-        // Observer le corps du document pour surveiller tous les changements
         observer.observe(document.body, { childList: true, subtree: true });
-
         console.log("Observation continue activée sur le DOM.");
 
-        
-        // Créer une balise <script>
         const scriptElement = document.createElement("script");
-        scriptElement.src = chrome.runtime.getURL("emot.js"); // Charger le script local
+        scriptElement.src = chrome.runtime.getURL("emot.js");
         scriptElement.type = "text/javascript";
         scriptElement.onload = () => {
-          console.log("Script de remplacement injecté avec succès !");
+            console.log("Script de remplacement injecté avec succès !");
         };
-        
-        // Injecter le script juste avant la balise </body>
         document.body.appendChild(scriptElement);
-        
-        // Confirmer l'injection
-        console.log("Le script est ajouté juste avant la fermeture de </body>");
+
+        // Bouton "Envoyer au salon"
+        if (location.hostname.endsWith("jeu-tarot-en-ligne.com") && location.pathname.startsWith("/forum-sujet/")) {
+            const insertShareButton = () => {
+                const h2List = document.querySelectorAll("h2.noMarginTop");
+
+                h2List.forEach(h2 => {
+                    const a = h2.querySelector("a");
+                    if (a && !h2.querySelector(".followSujBtn")) {
+                        const btn = document.createElement("button");
+                        btn.className = "btn btn-lg btn-warning pbtn button followSujBtn";
+                        btn.textContent = "Envoyer au salon";
+                        btn.setAttribute("onclick", "showDialog();");
+
+                        const separator = document.createTextNode(" | ");
+
+                        h2.appendChild(separator);
+                        h2.appendChild(btn);
+
+                        console.log("Bouton 'Envoyer au salon' ajouté.");
+                    }
+                });
+            };
+
+            insertShareButton();
+
+            const forumObserver = new MutationObserver(insertShareButton);
+            forumObserver.observe(document.body, { childList: true, subtree: true });
+        }
 
     } else {
-        console.log("Extension désactivée.");
+        console.log("Extension ou bouton de partage désactivé.");
     }
 });
