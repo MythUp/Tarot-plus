@@ -1,9 +1,8 @@
 {
     "manifest_version": 3,
     "name": "jeu-tarot-en-ligne.com•Emoji",
-    "version": "3.0.2",
+    "version": "3.0.1",
     "description": "Permet d'accéder à toutes les emotes de chat et d'en rajouter.",
-    "default_locale": "fr",
     "permissions": [
       "activeTab",
       "storage",
