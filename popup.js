@@ -1,12 +1,14 @@
 document.addEventListener("DOMContentLoaded", () => {
     const toggleExtension = document.getElementById("toggleExtension");
     const toggleShareForum = document.getElementById("toggleShareForum");
+    const toggleEmoticons = document.getElementById("toggleEmoticons");
     const openSiteContainer = document.querySelector(".openSiteButton");
 
     // Synchroniser les cases à cocher avec l'état stocké ou utiliser true par défaut
-    chrome.storage.local.get(["enabled", "shareForum", "disabledEmoticons"], (data) => {
-        toggleExtension.checked = data.enabled ?? true;
+    chrome.storage.local.get(["enabledExt", "shareForum", "emoticonsEnabled", "disabledEmoticons"], (data) => {
+        toggleExtension.checked = data.enabledExt ?? true;
         toggleShareForum.checked = data.shareForum ?? true;
+        toggleEmoticons.checked = data.emoticonsEnabled ?? true;
         const disabledEmoticons = data.disabledEmoticons ?? {};
         loadEmoticons(disabledEmoticons);
     });
@@ -24,7 +26,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Écouter les changements de la case à cocher
     toggleExtension.addEventListener("change", () => {
-        chrome.storage.local.set({ enabled: toggleExtension.checked }, () => {
+        chrome.storage.local.set({ enabledExt: toggleExtension.checked }, () => {
             console.log("État de l'extension mis à jour :", toggleExtension.checked);
 
             // Recharger la page si on est sur le site de tarot
@@ -80,6 +82,14 @@ document.addEventListener("DOMContentLoaded", () => {
             console.log("État du bouton de partage mis à jour :", toggleShareForum.checked);
         });
     });
+
+    // Écouter les changements de la case à cocher pour les émoticônes
+    toggleEmoticons.addEventListener("change", () => {
+        chrome.storage.local.set({ emoticonsEnabled: toggleEmoticons.checked }, () => {
+            console.log("Émoticônes activées ?", toggleEmoticons.checked);
+        });
+    });
+    
     
     // Afficher la version dynamiquement
     const manifestData = chrome.runtime.getManifest();
@@ -93,60 +103,73 @@ document.addEventListener("DOMContentLoaded", () => {
 
 // Charger les émoticônes et les afficher
 function loadEmoticons(disabledEmoticons) {
-    const emoticonsList = document.getElementById("emoticonsList");
-    if (!emoticonsList) {
-        console.error("Liste des émoticônes introuvable. Vérifiez l'élément avec ID 'emoticonsList'.");
-        return;
-    }
+    const carouselInner = document.getElementById("emoticonsCarouselInner");
+    if (!carouselInner) return;
 
-    emoticonsList.innerHTML = ""; // Vider la liste avant de charger
+    carouselInner.innerHTML = "";
 
-    // Ajouter les émoticônes
-    for (let i = 0; i < 84; i++) {
-        createEmoticon(
-            `Emoticon${i}`,
-            `https://amu11er.github.io/Emoticon${i}.png`,
-            disabledEmoticons,
-            emoticonsList
-        );
+    const total = 84;
+    const perSlide = 12;
+
+    for (let i = 0; i < total; i += perSlide) {
+        const isActive = i === 0 ? "active" : "";
+        const slide = document.createElement("div");
+        slide.className = `carousel-item ${isActive}`;
+
+        const wrapper = document.createElement("div");
+        wrapper.className = "d-flex flex-wrap justify-content-center gap-2 p-2";
+
+        for (let j = i; j < Math.min(i + perSlide, total); j++) {
+            const id = `Emoticon${j}`;
+            const src = `https://amu11er.github.io/Emoticon${j}.png`;
+            const img = createEmoticon(id, src, disabledEmoticons);
+            wrapper.appendChild(img);
+        }
+
+        slide.appendChild(wrapper);
+        carouselInner.appendChild(slide);
     }
 }
+
+
 
 // Créer un élément d'émoticône
-function createEmoticon(id, src, disabledEmoticons, container) {
+function createEmoticon(id, src, disabledEmoticons) {
     const imgElement = document.createElement("img");
     imgElement.src = src;
-    imgElement.classList.add("emotIcon");
+    imgElement.width = 32;
+    imgElement.height = 32;
+    imgElement.classList.add("img-thumbnail", "p-1");
     imgElement.dataset.id = id;
+    imgElement.style.cursor = "pointer";
 
-    // Appliquer l'opacité si désactivé
     if (disabledEmoticons[id]) {
-        imgElement.classList.add("inactive");
+        imgElement.classList.add("opacity-25");
     }
 
-    // Activer/désactiver au clic
     imgElement.addEventListener("click", () => toggleEmoticon(id, imgElement));
-    container.appendChild(imgElement);
+    return imgElement;
 }
+
 
 // Activer ou désactiver une émoticône
 function toggleEmoticon(emoticonId, imgElement) {
     chrome.storage.local.get("disabledEmoticons", (data) => {
         const disabledEmoticons = data.disabledEmoticons ?? {};
 
-        if (imgElement.classList.contains("inactive")) {
-            // Activer l'émoticône
+        const isInactive = imgElement.classList.contains("opacity-25");
+
+        if (isInactive) {
             delete disabledEmoticons[emoticonId];
-            imgElement.classList.remove("inactive");
+            imgElement.classList.remove("opacity-25");
         } else {
-            // Désactiver l'émoticône
             disabledEmoticons[emoticonId] = true;
-            imgElement.classList.add("inactive");
+            imgElement.classList.add("opacity-25");
         }
 
-        // Sauvegarder l'état des émoticônes
         chrome.storage.local.set({ disabledEmoticons }, () => {
-            console.log(`État de l'émoticône ${emoticonId} mis à jour.`);
+            console.log(`État de ${emoticonId} mis à jour.`);
         });
     });
 }
+

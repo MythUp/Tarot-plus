@@ -1,8 +1,13 @@
 {
     "manifest_version": 3,
     "name": "jeu-tarot-en-ligne.com•Emoji",
-    "version": "3.0.1",
-    "description": "Permet d'accéder à toutes les emotes de chat et d'en rajouter.",
+    "icons": {
+      "16": "icon.png",
+      "48": "icon.png",
+      "128": "icon.png"
+    },
+    "version": "3.1.0",
+    "description": "Permet d'accéder aux les émoticônes de chat ainsi que d'en rajouter. Elle ajoute aussi divers autres fonctionnalités sur le site.",
     "permissions": [
       "activeTab",
       "storage",
@@ -30,7 +35,7 @@
     ],
     "web_accessible_resources": [
       {
-        "resources": ["emot.js"],
+        "resources": ["emot.js", "buttonForum.js"],
         "matches": ["https://*.jeu-tarot-en-ligne.com/*"]
       }
     ]
