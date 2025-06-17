@@ -1,0 +1,48 @@
+body {
+  width: 400px;
+  height: auto;
+  padding: 1rem;
+  margin: 0;
+  background-color: #f8f9fa;
+  font-family: system-ui, sans-serif;
+}
+
+.container {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+}
+
+.carousel-control-prev,
+.carousel-control-next {
+  filter: invert(100%);
+}
+
+.openSiteButton {
+  text-align: center;
+}
+
+label {
+  text-align: left;
+}
+
+hr {
+  margin: 1rem 0;
+}
+
+#toggleExtensionContainer {
+  background-color: #f8f9fa; /* fond gris clair */
+  padding: 1rem;
+  border-radius: 0.5rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 0 0.25rem rgba(0,0,0,0.05);
+}
+
+#toggleExtensionContainer .form-check-input {
+  transform: scale(1.3); /* agrandit la case */
+  margin-right: 0.5rem;
+}
+
+#toggleExtensionContainer .form-check-label {
+  font-weight: bold;
+}

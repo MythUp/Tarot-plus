@@ -52,9 +52,6 @@ document.addEventListener("DOMContentLoaded", () => {
                                             chrome.storage.local.get("shouldStartGame", (data) => {
                                                 if (data.shouldStartGame) {
                                                     console.log("Tentative d'appel de startGame() via la console...");
-                                                    
-                                                    // Ouvrir la console du navigateur (non garanti sur tous les navigateurs)
-                                                    console.log("Pour exécuter startGame() manuellement, tapez : startGame()");
                                                 
                                                     // Essayer d'exécuter la fonction directement
                                                     if (typeof window.startGame === 'function') {
@@ -108,7 +105,7 @@ function loadEmoticons(disabledEmoticons) {
 
     carouselInner.innerHTML = "";
 
-    const total = 84;
+    const total = 85;
     const perSlide = 12;
 
     for (let i = 0; i < total; i += perSlide) {

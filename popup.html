@@ -4,57 +4,60 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <link rel="stylesheet" href="bootstrap.min.css"/>
-  <script src="bootstrap.bundle.min.js"></script>
-  <script src="popup.js"></script>
+  <link rel="stylesheet" href="popup.css"/>
+  <script src="bootstrap.bundle.min.js" defer></script>
+  <script src="popup.js" defer></script>
   <title>Configuration</title>
 </head>
-<body class="bg-light p-3">
+<body>
   <div class="container">
-    <h5 class="mb-3">Configuration des émoticônes</h5>
+    <h5 class="mb-3 text-center">Configuration de l'extension</h5>
 
-    <div class="form-check form-switch mb-2">
-      <input class="form-check-input" type="checkbox" id="toggleExtension">
+    <div id="toggleExtensionContainer" class="d-flex justify-content-center align-items-center mb-4">
+      <input class="form-check-input me-2" type="checkbox" id="toggleExtension">
       <label class="form-check-label" for="toggleExtension">Activer l'extension</label>
     </div>
 
-    <div class="form-check form-switch mb-2">
-      <input class="form-check-input" type="checkbox" id="toggleEmoticons">
-      <label class="form-check-label" for="toggleEmoticons">Plus d'émoticônes</label>
+    <div class="d-flex justify-content-center mb-2">
+      <div class="form-check form-switch d-flex align-items-center">
+        <input class="form-check-input me-2" type="checkbox" id="toggleEmoticons">
+        <label class="form-check-label mb-0" for="toggleEmoticons">Plus d'émoticônes</label>
+      </div>
     </div>
 
-    <div class="form-check form-switch mb-3">
-      <input class="form-check-input" type="checkbox" id="toggleShareForum">
-      <label class="form-check-label" for="toggleShareForum">Bouton de partage</label>
+    <div class="d-flex justify-content-center mb-3">
+      <div class="form-check form-switch d-flex align-items-center">
+        <input class="form-check-input me-2" type="checkbox" id="toggleShareForum">
+        <label class="form-check-label mb-0" for="toggleShareForum">Bouton de partage</label>
+      </div>
     </div>
 
     <hr />
 
-    <div class="openSiteButton">
-            <button id="openSiteButton" class="btn btn-primary">Ouvrir https://jeu-tarot-en-ligne.com/</button>
-            <hr>
+    <div class="openSiteButton mb-3">
+      <button id="openSiteButton" class="btn btn-primary w-100">
+        Ouvrir https://jeu-tarot-en-ligne.com/
+      </button>
+      <hr />
     </div>
 
-    <h5 class="mb-3">Liste des émoticônes</h5>
-    <div id="emoticonsCarousel" class="carousel slide" data-bs-ride="carousel">
-        <div class="carousel-inner" id="emoticonsCarouselInner">
-          <!-- Slides injectés ici par JS -->
-        </div>
-    
-        <!-- Bouton précédent -->
-        <button class="carousel-control-prev" type="button" data-bs-target="#emoticonsCarousel" data-bs-slide="prev">
-          ⏮
-        </button>
-    
-        <!-- Bouton suivant -->
-        <button class="carousel-control-next" type="button" data-bs-target="#emoticonsCarousel" data-bs-slide="next">
-          ⏭
-        </button>
+    <h5 class="mb-3 text-center">Liste des émoticônes</h5>
+    <div id="emoticonsCarousel" class="carousel slide mb-3" data-bs-ride="carousel">
+      <div class="carousel-inner" id="emoticonsCarouselInner">
+        <!-- Slides injectés ici par JS -->
+      </div>
+      <button class="carousel-control-prev" type="button" data-bs-target="#emoticonsCarousel" data-bs-slide="prev">
+        ⏮
+      </button>
+      <button class="carousel-control-next" type="button" data-bs-target="#emoticonsCarousel" data-bs-slide="next">
+        ⏭
+      </button>
     </div>
 
-    <div class="text-center text-muted small mt-3">
+    <div class="text-center text-muted small mt-2">
       Version <span id="version"></span> | Développé avec ❤️ par
       <a href="https://gitlab.com/AMu11er" class="text-reset text-decoration-none" target="_blank" rel="noopener noreferrer">AMu11er</a>
     </div>
-
+  </div>
 </body>
 </html>
