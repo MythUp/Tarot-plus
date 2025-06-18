@@ -1,5 +1,5 @@
-(function injectForumButton() {
-    console.log("[EXT] ⏳ Injection du bouton forum");
+(function () {
+    console.log("[EXT] Injection du bouton forum");
 
     function isForumPage() {
         return location.hostname.endsWith("jeu-tarot-en-ligne.com") &&
@@ -8,22 +8,22 @@
 
     function tryInjectButton() {
         if (!isForumPage()) {
-            console.log("[EXT] ❌ Pas une page forum-sujet, on ignore.");
+            console.log("[EXT] Pas une page forum-sujet, on ignore.");
             return;
         }
 
         const h2List = document.querySelectorAll("h2.noMarginTop");
 
         if (h2List.length === 0) {
-            setTimeout(tryInjectButton, 500);
+            setTimeout(tryInjectButton, 500); // Attente du DOM si non prêt
             return;
         }
 
         h2List.forEach(h2 => {
-            if (h2.querySelector(".followSujBtn")) return;
+            if (h2.querySelector(".followSujBtn")) return; // Évite doublon
 
             const btn = document.createElement("button");
-            btn.className = "btn btn-lg btn-warning pbtn button followSujBtn";
+            btn.className = "btn ptobt btn-success pbtn";
             btn.textContent = "Envoyer au salon";
 
             btn.onclick = () => {
@@ -67,7 +67,7 @@
 
             h2.appendChild(document.createTextNode(" | "));
             h2.appendChild(btn);
-            console.log("[EXT] ✅ Bouton 'Envoyer au salon' injecté.");
+            console.log("[EXT] Bouton 'Envoyer au salon' injecté.");
         });
     }
 
