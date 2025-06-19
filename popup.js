@@ -1,4 +1,35 @@
 document.addEventListener("DOMContentLoaded", () => {
+    
+    // 1. Vérifie si l'onglet actif est sur jeu-tarot-en-ligne.com
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      const tab = tabs[0];
+      const isTarotSite = tab.url.includes("jeu-tarot-en-ligne.com");   
+      if (isTarotSite) {
+        // 2. Injecte le script pour détecter le thème sombre sur le site
+        chrome.scripting.executeScript(
+          {
+            target: { tabId: tab.id },
+            func: () => {
+              const root = document.getElementById("webBody");
+              return root && root.classList.contains("themeSombre");
+            }
+          },
+          (results) => {
+            if (chrome.runtime.lastError || !results || !results[0]) return;    
+            const isDark = results[0].result;
+            document.body.classList.toggle("dark-mode", isDark);    
+            // 3. Stocke l'état du thème dans chrome.storage
+            chrome.storage.local.set({ tarotTheme: isDark ? "dark" : "light" });
+          }
+        );
+      } else {
+        // 4. Sinon, on lit l'état stocké précédemment
+        chrome.storage.local.get("tarotTheme", ({ tarotTheme }) => {
+          document.body.classList.toggle("dark-mode", tarotTheme === "dark");
+        });
+      }
+    });
+
     const toggleExtension = document.getElementById("toggleExtension");
     const toggleShareForum = document.getElementById("toggleShareForum");
     const toggleEmoticons = document.getElementById("toggleEmoticons");

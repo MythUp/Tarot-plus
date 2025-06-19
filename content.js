@@ -1,3 +1,9 @@
+const isDark = document.querySelector("#webBody.themeSombre") !== null;
+
+chrome.storage.local.set({ tarotTheme: isDark ? "dark" : "light" }, () => {
+  console.log("[EXT] Thème actuel enregistré :", isDark ? "dark" : "light");
+});
+
 chrome.storage.local.get(
   ["enabledExt", "shareForum", "emoticonsEnabled", "disabledEmoticons"],
   (data) => {
