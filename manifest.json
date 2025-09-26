@@ -8,7 +8,7 @@
       "48": "icon.png",
       "128": "icon.png"
     },
-    "version": "3.2.0",
+    "version": "3.2.1",
     "description": "Permet d'accéder aux les émoticônes de chat ainsi que d'en rajouter. Ajoute aussi divers autres fonctionnalités sur le site.",
     "permissions": [
       "activeTab",
