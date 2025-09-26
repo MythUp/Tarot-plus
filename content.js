@@ -21,13 +21,13 @@ chrome.storage.local.get(
         for (let i = 0; i < 85; i++) {
           const id = `Emoticon${i}`;
           if (!disabled[id]) {
-            html += `<img onclick="sendEmot(${i});" src="https://amu11er.github.io/Emoticon${i}.png" class="emotIcon" style="margin: 0 4px;">`;
+            html += `<img onclick="sendEmot(${i});" src="https://github.com/MythUp/Extension-de-Tarot-en-ligne---GitHub/blob/main/emots/Emoticon${i}.png" class="emotIcon" style="margin: 0 4px;">`;
           }
         }
         return html;
       };
 
-      const isMine = (img) => img.src.startsWith("https://amu11er.github.io/");
+      const isMine = (img) => img.src.startsWith("https://github.com/MythUp/Extension-de-Tarot-en-ligne---GitHub/blob/main/emots/");
 
       const updateEmoticons = () => {
         const td = document.querySelector("#chatBg td#chtput");
