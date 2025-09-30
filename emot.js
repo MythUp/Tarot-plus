@@ -47,7 +47,7 @@ moteurHTML.showMessageJoueur = function (idJoueur,message) {
     
     if (emoticons[message] ) {
     //$('#divJoueur'+idJoueur).attr('title', message);
-    var newIcon = $('<img class="emotHTML" style="opacity:0;" src="https://github.com/MythUp/Extension-de-Tarot-en-ligne---GitHub/blob/main/emots/Emoticon'+emoticons[message]+'.png" />')
+    var newIcon = $('<img class="emotHTML" style="opacity:0;" src="https://raw.githubusercontent.com/MythUp/Extension-de-Tarot-en-ligne---GitHub/refs/heads/main/emots/Emoticon'+emoticons[message]+'.png" />')
     $('#divJoueur'+idJoueur).append(newIcon);
     
     $( newIcon ).load(function() {
@@ -109,7 +109,7 @@ moteurHTML2.showMessageJoueur = function (idJoueur,message) {
     
     if (emoticons[message] ) {
     
-    var newIcon = $('<img class="emotHTML" style="opacity:0;" src="https://github.com/MythUp/Extension-de-Tarot-en-ligne---GitHub/blob/main/emots/Emoticon'+emoticons[message]+'.png" />')
+    var newIcon = $('<img class="emotHTML" style="opacity:0;" src="https://raw.githubusercontent.com/MythUp/Extension-de-Tarot-en-ligne---GitHub/refs/heads/main/emots/Emoticon'+emoticons[message]+'.png" />')
     $('#divJoueur'+idJoueur).append(newIcon);
     $( newIcon ).load(function() {
     newIcon.css('margin-left',$('#divJoueur'+idJoueur).width()/2-newIcon.width()/2);
