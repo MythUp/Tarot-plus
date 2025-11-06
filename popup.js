@@ -136,8 +136,8 @@ function loadEmoticons(disabledEmoticons) {
 
     carouselInner.innerHTML = "";
 
-    const total = 85;
-    const perSlide = 12;
+    const total = 65;
+    const perSlide = 16;
 
     for (let i = 0; i < total; i += perSlide) {
         const isActive = i === 0 ? "active" : "";
@@ -149,7 +149,7 @@ function loadEmoticons(disabledEmoticons) {
 
         for (let j = i; j < Math.min(i + perSlide, total); j++) {
             const id = `Emoticon${j}`;
-            const src = `https://raw.githubusercontent.com/MythUp/Extension-de-Tarot-en-ligne---GitHub/refs/heads/main/emots/Emoticon${j}.png`;
+            const src = `https://raw.githubusercontent.com/MythUp/Extension-de-Tarot-en-ligne---GitHub/refs/heads/dev/emots/Emoticon${j}.png`;
             const img = createEmoticon(id, src, disabledEmoticons);
             wrapper.appendChild(img);
         }

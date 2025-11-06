@@ -18,10 +18,10 @@ chrome.storage.local.get(
       // Génère le HTML des émoticônes autorisées
       const generateEmoticonsHTML = (disabled = {}) => {
         let html = "";
-        for (let i = 0; i < 85; i++) {
+        for (let i = 0; i < 65; i++) {
           const id = `Emoticon${i}`;
           if (!disabled[id]) {
-            html += `<img onclick="sendEmot(${i});" src="https://raw.githubusercontent.com/MythUp/Extension-de-Tarot-en-ligne---GitHub/refs/heads/main/emots/Emoticon${i}.png" class="emotIcon" style="margin: 0 4px;">`;
+            html += `<img onclick="sendEmot(${i});" alt="Émoticône" src="https://raw.githubusercontent.com/MythUp/Extension-de-Tarot-en-ligne---GitHub/refs/heads/dev/emots/Emoticon${i}.png" class="emotIcon" style="margin: 0 4px;">`;
           }
         }
         return html;
