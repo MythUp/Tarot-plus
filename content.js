@@ -36,7 +36,7 @@ chrome.storage.local.get(
         chrome.storage.local.get(["disabledEmoticons"], (storage) => {
           const disabled = storage.disabledEmoticons ?? {};
           td.innerHTML = generateEmoticonsHTML(disabled);
-          console.log("[EXT] 🔁 Emoticônes mises à jour dynamiquement.");
+          console.log("[EXT] 🔁 Émoticônes mises à jour dynamiquement.");
         });
       };
 
