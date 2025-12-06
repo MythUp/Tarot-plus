@@ -1,4 +1,5 @@
 const isDark = document.querySelector("#webBody.themeSombre") !== null;
+let isReplacingEmoticons = false;
 
 chrome.storage.local.set({ tarotTheme: isDark ? "dark" : "light" }, () => {
   console.log("[EXT] Thème actuel enregistré :", isDark ? "dark" : "light");
@@ -21,13 +22,13 @@ chrome.storage.local.get(
         for (let i = 0; i < 65; i++) {
           const id = `Emoticon${i}`;
           if (!disabled[id]) {
-            html += `<img onclick="sendEmot(${i});" alt="Émoticône" src="https://raw.githubusercontent.com/MythUp/Extension-de-Tarot-en-ligne---GitHub/refs/heads/dev/emots/Emoticon${i}.png" class="emotIcon" style="margin: 0 4px;">`;
+            html += `<img onclick="sendEmot(${i});" src="https://raw.githubusercontent.com/MythUp/Extension-de-Tarot-en-ligne---GitHub/refs/heads/dev/emots/Emoticon${i}.png" class="emotIcon" style="margin: 0 4px;">`;
           }
         }
         return html;
       };
 
-      const isMine = (img) => img.src.startsWith("https://raw.githubusercontent.com/MythUp/Extension-de-Tarot-en-ligne---GitHub/refs/heads/main/emots/");
+      const isMine = (img) => img.src.includes("MythUp/Extension-de-Tarot-en-ligne---GitHub/refs/heads/");
 
       const updateEmoticons = () => {
         const td = document.querySelector("#chatBg td#chtput");
@@ -55,11 +56,16 @@ chrome.storage.local.get(
         }
 
         console.log("[EXT] 🔄 Remplacement des émoticônes du site...");
+        isReplacingEmoticons = true;
         updateEmoticons();
+        isReplacingEmoticons = false;
       };
 
       // Surveiller le DOM
-      const observer = new MutationObserver(() => replaceTdContentIfNeeded());
+      const observer = new MutationObserver(() => {
+        if (isReplacingEmoticons) return;
+        replaceTdContentIfNeeded();
+      });
       observer.observe(document.body, { childList: true, subtree: true });
       console.log("[EXT] 👁️ Observation du DOM activée.");
 
