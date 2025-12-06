@@ -93,3 +93,28 @@ body.dark-mode .text-muted {
 body.dark-mode .text-reset {
   color: #ccc !important;
 }
+
+body.dark-mode .reload-prompt {
+  background: #2a2015;
+  border-color: #5f4b34;
+  color: #f8f9fa;
+  box-shadow: 0 0 0.6rem rgba(0, 0, 0, 0.45);
+}
+
+body.dark-mode .reload-prompt p {
+  color: #f4ede2;
+}
+
+body.dark-mode .reload-prompt .btn-primary {
+  background-color: #5b4836;
+  border-color: #4c3a2b;
+}
+
+body.dark-mode .reload-prompt .btn-outline-secondary {
+  color: #efe7da;
+  border-color: #4c3a2b;
+}
+
+body.dark-mode .reload-prompt .btn-outline-secondary:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+}

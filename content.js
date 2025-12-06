@@ -22,7 +22,7 @@ chrome.storage.local.get(
         for (let i = 0; i < 65; i++) {
           const id = `Emoticon${i}`;
           if (!disabled[id]) {
-            html += `<img onclick="sendEmot(${i});" alt="Émoticône n°${i}" src="https://raw.githubusercontent.com/MythUp/Extension-de-Tarot-en-ligne---GitHub/refs/heads/dev/emots/Emoticon${i}.png" class="emotIcon" style="margin: 0 4px;">`;
+            html += `<img onclick="sendEmot(${i});" alt="Émoticône n°${i}" src="https://raw.githubusercontent.com/MythUp/Extension-de-Tarot-en-ligne---GitHub/refs/heads/main/emots/Emoticon${i}.png" class="emotIcon" style="margin: 0 4px;">`;
           }
         }
         return html;
