@@ -1,26 +1,6 @@
 emoticons['Bravo !'] = '62';
-emoticons['Bye !'] = '63';
-emoticons['Bof !'] = '64';
-emoticons['Et toc !'] = '65';
-emoticons['Hein ?'] = '66';
-emoticons['Heu...'] = '67';
-emoticons['Ouf'] = '68';
-emoticons['Miam'] = '69';
-emoticons['Non Mais !'] = '70';
-emoticons['Paf !'] = '71';
-emoticons['Ciao !'] = '72';
-emoticons['Good'] = '73';
-emoticons['Hello'] = '74';
-emoticons['Hey'] = '75';
-emoticons['Holà'] = '76';
-emoticons['Ok'] = '77';
-emoticons['Tchao'] = '78';
-emoticons['Yes'] = '79';
-emoticons['D\u00E9sol\u00E9...'] = '80';
-emoticons['Pardon'] = '81';
-emoticons['Sorry'] = '82';
-emoticons['Wouf !'] = '83';
-emoticons['Cadeau !'] = '84';
+emoticons['D\u00E9sol\u00E9...'] = '63';
+emoticons['Cadeau !'] = '64';
 
 function findEmot(i) {
     for (var ii in emoticons) {

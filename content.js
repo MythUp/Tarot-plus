@@ -1,4 +1,5 @@
 const isDark = document.querySelector("#webBody.themeSombre") !== null;
+let isReplacingEmoticons = false;
 
 chrome.storage.local.set({ tarotTheme: isDark ? "dark" : "light" }, () => {
   console.log("[EXT] Thème actuel enregistré :", isDark ? "dark" : "light");
@@ -18,16 +19,16 @@ chrome.storage.local.get(
       // Génère le HTML des émoticônes autorisées
       const generateEmoticonsHTML = (disabled = {}) => {
         let html = "";
-        for (let i = 0; i < 85; i++) {
+        for (let i = 0; i < 65; i++) {
           const id = `Emoticon${i}`;
           if (!disabled[id]) {
-            html += `<img onclick="sendEmot(${i});" src="https://raw.githubusercontent.com/MythUp/Extension-de-Tarot-en-ligne---GitHub/refs/heads/main/emots/Emoticon${i}.png" class="emotIcon" style="margin: 0 4px;">`;
+            html += `<img onclick="sendEmot(${i});" alt="Émoticône n°${i}" src="https://raw.githubusercontent.com/MythUp/Extension-de-Tarot-en-ligne---GitHub/refs/heads/main/emots/Emoticon${i}.png" class="emotIcon" style="margin: 0 4px;">`;
           }
         }
         return html;
       };
 
-      const isMine = (img) => img.src.startsWith("https://raw.githubusercontent.com/MythUp/Extension-de-Tarot-en-ligne---GitHub/refs/heads/main/emots/");
+      const isMine = (img) => img.src.includes("MythUp/Extension-de-Tarot-en-ligne---GitHub/refs/heads/");
 
       const updateEmoticons = () => {
         const td = document.querySelector("#chatBg td#chtput");
@@ -36,7 +37,7 @@ chrome.storage.local.get(
         chrome.storage.local.get(["disabledEmoticons"], (storage) => {
           const disabled = storage.disabledEmoticons ?? {};
           td.innerHTML = generateEmoticonsHTML(disabled);
-          console.log("[EXT] 🔁 Emoticônes mises à jour dynamiquement.");
+          console.log("[EXT] 🔁 Émoticônes mises à jour dynamiquement.");
         });
       };
 
@@ -55,11 +56,16 @@ chrome.storage.local.get(
         }
 
         console.log("[EXT] 🔄 Remplacement des émoticônes du site...");
+        isReplacingEmoticons = true;
         updateEmoticons();
+        isReplacingEmoticons = false;
       };
 
       // Surveiller le DOM
-      const observer = new MutationObserver(() => replaceTdContentIfNeeded());
+      const observer = new MutationObserver(() => {
+        if (isReplacingEmoticons) return;
+        replaceTdContentIfNeeded();
+      });
       observer.observe(document.body, { childList: true, subtree: true });
       console.log("[EXT] 👁️ Observation du DOM activée.");
 
