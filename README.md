@@ -1,4 +1,4 @@
-# https://github.com/MythUp/Extension-de-Tarot-en-ligne/tree/main
+# Extension-de-Tarot-en-ligne
 
 Cette extension ajoute des icônes personnalisées pour améliorer l'expérience utilisateur sur le site [jeu-tarot-en-ligne.com](https://jeu-tarot-en-ligne.com).
 
