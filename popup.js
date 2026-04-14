@@ -4,12 +4,14 @@ document.addEventListener("DOMContentLoaded", () => {
     const toggleExtension = document.getElementById("toggleExtension");
     const toggleShareForum = document.getElementById("toggleShareForum");
     const toggleEmoticons = document.getElementById("toggleEmoticons");
+    const toggleUnicodeDecoding = document.getElementById("toggleUnicodeDecoding");
     const openSiteContainer = document.querySelector(".openSiteButton");
 
-    chrome.storage.local.get(["enabledExt", "shareForum", "emoticonsEnabled", "disabledEmoticons"], (data) => {
+    chrome.storage.local.get(["enabledExt", "shareForum", "emoticonsEnabled", "unicodeDecodingEnabled", "disabledEmoticons"], (data) => {
         if (toggleExtension) toggleExtension.checked = data.enabledExt ?? true;
         if (toggleShareForum) toggleShareForum.checked = data.shareForum ?? true;
         if (toggleEmoticons) toggleEmoticons.checked = data.emoticonsEnabled ?? true;
+        if (toggleUnicodeDecoding) toggleUnicodeDecoding.checked = data.unicodeDecodingEnabled ?? true;
         const disabledEmoticons = data.disabledEmoticons ?? {};
         loadEmoticons(disabledEmoticons);
     });
@@ -67,6 +69,12 @@ document.addEventListener("DOMContentLoaded", () => {
     if (toggleEmoticons) {
         toggleEmoticons.addEventListener("change", () => {
             ensureAndSet("emoticonsEnabled", toggleEmoticons.checked);
+        });
+    }
+
+    if (toggleUnicodeDecoding) {
+        toggleUnicodeDecoding.addEventListener("change", () => {
+            ensureAndSet("unicodeDecodingEnabled", toggleUnicodeDecoding.checked, false);
         });
     }
 
@@ -234,9 +242,11 @@ function promptReloadIfNeeded() {
     chrome.storage.local.set({ needsReload: true });
 }
 
-function ensureAndSet(key, value) {
+function ensureAndSet(key, value, promptReload = true) {
     chrome.storage.local.set({ [key]: value }, () => {
         console.log(`${key} maintenant ${value}`);
-        promptReloadIfNeeded();
+        if (promptReload) {
+            promptReloadIfNeeded();
+        }
     });
 }

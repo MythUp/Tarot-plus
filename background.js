@@ -1,7 +1,7 @@
 // background.js
 
 chrome.runtime.onInstalled.addListener(() => {
-  const keysToEnsure = ["enabledExt", "shareForum", "emoticonsEnabled"];
+  const keysToEnsure = ["enabledExt", "shareForum", "emoticonsEnabled", "unicodeDecodingEnabled"];
   chrome.storage.local.get(keysToEnsure, (data) => {
     const defaults = {};
     keysToEnsure.forEach((key) => {
