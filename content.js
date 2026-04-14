@@ -3,6 +3,9 @@ let isReplacingEmoticons = false;
 let unicodeDecodingEnabled = false;
 let unicodeDecodingObserver = null;
 let updateEmoticons = null;
+let unicodeBridgeInjected = false;
+
+const unicodeBridgeEventName = "tarot-unicode-toggle";
 
 const unicodeExcludedInputTypes = new Set(["button", "file", "image", "reset", "submit"]);
 
@@ -82,6 +85,10 @@ function decodeUnicodeDisplaySequences(value) {
 
 function encodeUnicodeTransportValue(value) {
   return encodeUnicodeSequences(decodeUnicodeDisplaySequences(value));
+}
+
+function escapeUnicodeTransportValue(value) {
+  return nativeEscape(encodeUnicodeTransportValue(value));
 }
 
 function isUnicodeTextInput(element) {
@@ -169,6 +176,28 @@ function restoreUnicodeOriginalState() {
   restoreUnicodeTextNodes();
 }
 
+function dispatchUnicodeBridgeState(enabled) {
+  window.dispatchEvent(
+    new CustomEvent(unicodeBridgeEventName, {
+      detail: { enabled: Boolean(enabled) },
+    })
+  );
+}
+
+function injectUnicodeBridge() {
+  if (unicodeBridgeInjected) {
+    dispatchUnicodeBridgeState(unicodeDecodingEnabled);
+    return;
+  }
+
+  const script = document.createElement("script");
+  script.id = "tarot-unicode-bridge";
+  script.src = chrome.runtime.getURL("unicodeBridge.js");
+  script.onload = () => dispatchUnicodeBridgeState(unicodeDecodingEnabled);
+  (document.head || document.documentElement).appendChild(script);
+  unicodeBridgeInjected = true;
+}
+
 function installUnicodeValueBridges() {
   if (unicodeValueBridgesInstalled) {
     return;
@@ -218,7 +247,7 @@ function installUnicodeTransportBridges() {
         return nativeEscape(value);
       }
 
-      return nativeEscape(encodeUnicodeTransportValue(typeof value === "string" ? value : String(value)));
+      return escapeUnicodeTransportValue(value);
     };
   }
 
@@ -420,6 +449,7 @@ function startUnicodeDecoding() {
   }
 
   unicodeDecodingEnabled = true;
+  dispatchUnicodeBridgeState(true);
 
   decodeUnicodeNode(root);
 
@@ -462,6 +492,7 @@ function startUnicodeDecoding() {
 
 function stopUnicodeDecoding() {
   unicodeDecodingEnabled = false;
+  dispatchUnicodeBridgeState(false);
 
   if (!unicodeDecodingObserver) {
     restoreUnicodeOriginalState();
@@ -485,6 +516,8 @@ chrome.storage.local.get(
     if (!data.enabledExt) return console.log("[EXT] ❌ Extension désactivée.");
 
     console.log("[EXT] ✅ Extension activée.");
+
+    injectUnicodeBridge();
 
     if (data.unicodeDecodingEnabled ?? true) {
       startUnicodeDecoding();
