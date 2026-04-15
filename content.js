@@ -510,6 +510,56 @@ chrome.storage.local.set({ tarotTheme: isDark ? "dark" : "light" }, () => {
   console.log("[EXT] Thème actuel enregistré :", isDark ? "dark" : "light");
 });
 
+let shareForumEnabled = true;
+let forumShareButtonScriptLoaded = false;
+let forumShareButtonLastURL = location.href;
+
+const setForumShareButtonInitialState = (enabled) => {
+  const root = document.documentElement || document.body;
+  if (root) {
+    root.dataset.forumShareButtonEnabled = enabled ? "true" : "false";
+  }
+};
+
+const dispatchForumShareButtonState = (enabled) => {
+  document.dispatchEvent(new CustomEvent("forum-share-button-state", {
+    detail: { enabled },
+    bubbles: true,
+  }));
+};
+
+const injectForumShareButtonScript = () => {
+  if (forumShareButtonScriptLoaded) {
+    return;
+  }
+
+  forumShareButtonScriptLoaded = true;
+  const script = document.createElement("script");
+  script.src = chrome.runtime.getURL("buttonForum.js");
+  (document.head || document.documentElement).appendChild(script);
+};
+
+const setForumShareButtonEnabled = (enabled) => {
+  setForumShareButtonInitialState(enabled);
+
+  if (!forumShareButtonScriptLoaded) {
+    if (enabled && location.pathname.startsWith("/forum") && location.href.includes("/forum-sujet/")) {
+      injectForumShareButtonScript();
+    }
+    return;
+  }
+
+  dispatchForumShareButtonState(enabled);
+};
+
+const syncForumShareButton = () => {
+  const isForumSection = location.pathname.startsWith("/forum");
+  const isForumSujetURL = location.href.includes("/forum-sujet/");
+  const shouldShowForumButton = Boolean(shareForumEnabled && isForumSection && isForumSujetURL);
+
+  setForumShareButtonEnabled(shouldShowForumButton);
+};
+
 chrome.storage.local.get(
   ["enabledExt", "shareForum", "emoticonsEnabled", "unicodeDecodingEnabled", "disabledEmoticons"],
   (data) => {
@@ -518,6 +568,8 @@ chrome.storage.local.get(
     console.log("[EXT] ✅ Extension activée.");
 
     injectUnicodeBridge();
+
+    shareForumEnabled = data.shareForum ?? true;
 
     if (data.unicodeDecodingEnabled ?? true) {
       startUnicodeDecoding();
@@ -540,7 +592,22 @@ chrome.storage.local.get(
           stopUnicodeDecoding();
         }
       }
+
+      if (changes.shareForum) {
+        shareForumEnabled = changes.shareForum.newValue ?? true;
+        syncForumShareButton();
+      }
     });
+
+    syncForumShareButton();
+
+    setInterval(() => {
+      const currentURL = location.href;
+      if (currentURL !== forumShareButtonLastURL) {
+        forumShareButtonLastURL = currentURL;
+        syncForumShareButton();
+      }
+    }, 1000);
 
     // === 🔹 EMOTICONS PERSONNALISÉES ===
     if (data.emoticonsEnabled) {
@@ -608,34 +675,5 @@ chrome.storage.local.get(
       document.body.appendChild(script);
     }
 
-    // === 🔹 BOUTON "ENVOYER AU SALON" SUR LE FORUM ===
-    if (data.shareForum && location.pathname.startsWith("/forum")) {
-      const injectScript = (file) => {
-        const script = document.createElement("script");
-        script.src = chrome.runtime.getURL(file);
-        (document.head || document.documentElement).appendChild(script);
-      };
-
-      const isForumSujetURL = (url) => url.includes("/forum-sujet/");
-      let lastURL = location.href;
-
-      // Injection immédiate si déjà sur une page forum-sujet
-      if (isForumSujetURL(lastURL)) {
-        console.log("[EXT] 💬 Injection immédiate de buttonForum.js");
-        injectScript("buttonForum.js");
-      }
-
-      // Surveiller les navigations AJAX dans le forum
-      setInterval(() => {
-        const currentURL = location.href;
-        if (currentURL !== lastURL) {
-          lastURL = currentURL;
-          if (isForumSujetURL(currentURL)) {
-            console.log("[EXT] 📡 Passage à une page forum-sujet détecté :", currentURL);
-            injectScript("buttonForum.js");
-          }
-        }
-      }, 1000);
-    }
   }
 );

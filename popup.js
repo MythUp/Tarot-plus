@@ -62,7 +62,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (toggleShareForum) {
         toggleShareForum.addEventListener("change", () => {
-            ensureAndSet("shareForum", toggleShareForum.checked);
+            ensureAndSet("shareForum", toggleShareForum.checked, false);
         });
     }
 
