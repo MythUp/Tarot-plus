@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
-    "name": "Tarot en ligne - Émoticônes & plus encore",
-    "short_name": "Émots & +",
+    "name": "Tarot+",
+    "short_name": "Tarot+",
     "author": "Alban Muller",
     "icons": {
       "16": "icon.png",
@@ -9,7 +9,7 @@
       "128": "icon.png"
     },
     "version": "3.4.0",
-    "description": "Permet d'accéder aux émoticônes de chat ainsi que d'en rajouter. Ajoute aussi divers autres fonctionnalités sur le site.",
+    "description": "Ajoute des fonctionnalités à jeu-tarot-en-ligne.com pour améliorer votre expérience de jeu. Corrige aussi certains bugs présent sur le site.",
     "permissions": [
       "activeTab",
       "storage",
@@ -28,7 +28,7 @@
         "128": "icon.png"
       }
     },
-    "default_title": "Configuration de l'extension",
+    "default_title": "Configuration",
     "content_scripts": [
       {
         "matches": ["https://*.jeu-tarot-en-ligne.com/*"],
