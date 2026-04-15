@@ -22,17 +22,38 @@
       return value;
     }
 
-    return value.replace(/%u([0-9a-fA-F]{4})/g, (_, hex) =>
-      String.fromCharCode(Number.parseInt(hex, 16))
+    return value.replace(/%u([0-9a-fA-F]{4,6})/g, (_, hex) =>
+      String.fromCodePoint(Number.parseInt(hex, 16))
     );
   }
-
-  function decodeUnicodeEntitySequences(value) {
-    if (typeof value !== "string" || !value.includes("&#")) {
+  function decodeHexadecimalSequences(value) {
+    if (typeof value !== "string" || !value.match(/(?:[Uu]\+|0[xX]|\\[xX])/)) {
       return value;
     }
 
-    return value.replace(/&#(x?[0-9a-fA-F]+);?/g, (match, entityValue) => {
+    return value.replace(/(^|[^0-9A-Fa-f])((?:[Uu]\+|0[xX]|\\[xX])([0-9a-fA-F]{2,6}))/g, (match, prefix, _sequence, hex) => {
+      const codePoint = Number.parseInt(hex, 16);
+
+      if (!Number.isFinite(codePoint) || codePoint < 0 || codePoint > 0x10FFFF) {
+        return match;
+      }
+
+      return `${prefix}${String.fromCodePoint(codePoint)}`;
+    });
+  }
+
+  function decodeUnicodeEntitySequences(value) {
+    if (typeof value !== "string" || !value.includes("&")) {
+      return value;
+    }
+
+    return value.replace(/&(?:#([xX]?[0-9a-fA-F]+)|([xX][0-9a-fA-F]+));?/g, (match, decimalOrHexEntity, hexEntity) => {
+      const entityValue = decimalOrHexEntity ?? hexEntity;
+
+      if (!entityValue) {
+        return match;
+      }
+
       const isHex = entityValue.startsWith("x") || entityValue.startsWith("X");
       const codePoint = Number.parseInt(isHex ? entityValue.slice(1) : entityValue, isHex ? 16 : 10);
 
@@ -45,7 +66,7 @@
   }
 
   function decodeUnicodeTransportValue(value) {
-    return decodeUnicodeSequences(decodeUnicodeEntitySequences(value));
+    return decodeUnicodeSequences(decodeHexadecimalSequences(decodeUnicodeEntitySequences(value)));
   }
 
   function encodeUnicodeSequences(value) {

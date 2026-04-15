@@ -35,7 +35,8 @@ const unicodeDecodingAttributes = [
   "title",
 ];
 
-const unicodeDecodingPattern = /%u([0-9a-fA-F]{4})/g;
+const unicodeDecodingPattern = /%u([0-9a-fA-F]{4,6})/g;
+const hexadecimalDecodingPattern = /(^|[^0-9A-Fa-f])((?:[Uu]\+|0[xX]|\\[xX])([0-9a-fA-F]{2,6}))/g;
 
 function decodeUnicodeSequences(value) {
   if (typeof value !== "string" || !value.includes("%u")) {
@@ -43,8 +44,24 @@ function decodeUnicodeSequences(value) {
   }
 
   return value.replace(unicodeDecodingPattern, (_, hex) =>
-    String.fromCharCode(Number.parseInt(hex, 16))
+    String.fromCodePoint(Number.parseInt(hex, 16))
   );
+}
+
+function decodeHexadecimalSequences(value) {
+  if (typeof value !== "string" || !value.match(/(?:[Uu]\+|0[xX]|\\[xX])/)) {
+    return value;
+  }
+
+  return value.replace(hexadecimalDecodingPattern, (match, prefix, _sequence, hex) => {
+    const codePoint = Number.parseInt(hex, 16);
+
+    if (!Number.isFinite(codePoint) || codePoint < 0 || codePoint > 0x10FFFF) {
+      return match;
+    }
+
+    return `${prefix}${String.fromCodePoint(codePoint)}`;
+  });
 }
 
 function encodeUnicodeSequences(value) {
@@ -63,11 +80,17 @@ function encodeUnicodeSequences(value) {
 }
 
 function decodeUnicodeEntitySequences(value) {
-  if (typeof value !== "string" || !value.includes("&#")) {
+  if (typeof value !== "string" || !value.includes("&")) {
     return value;
   }
 
-  return value.replace(/&#(x?[0-9a-fA-F]+);?/g, (match, entityValue) => {
+  return value.replace(/&(?:#([xX]?[0-9a-fA-F]+)|([xX][0-9a-fA-F]+));?/g, (match, decimalOrHexEntity, hexEntity) => {
+    const entityValue = decimalOrHexEntity ?? hexEntity;
+
+    if (!entityValue) {
+      return match;
+    }
+
     const isHex = entityValue.startsWith("x") || entityValue.startsWith("X");
     const codePoint = Number.parseInt(isHex ? entityValue.slice(1) : entityValue, isHex ? 16 : 10);
 
@@ -80,7 +103,7 @@ function decodeUnicodeEntitySequences(value) {
 }
 
 function decodeUnicodeDisplaySequences(value) {
-  return decodeUnicodeSequences(decodeUnicodeEntitySequences(value));
+  return decodeUnicodeSequences(decodeHexadecimalSequences(decodeUnicodeEntitySequences(value)));
 }
 
 function encodeUnicodeTransportValue(value) {
