@@ -127,7 +127,7 @@ function isUnicodeTextControl(element) {
 }
 
 const emoticonToolbarSelector = "#chatBg td#chtput";
-const emoticonImageSourceMarker = "MythUp/Extension-de-Tarot-en-ligne---GitHub/refs/heads/";
+const emoticonImageSourceMarker = "MythUp/tarot-plus/refs/heads/";
 
 function getEmoticonToolbar() {
   return document.querySelector(emoticonToolbarSelector);
@@ -139,7 +139,7 @@ function generateEmoticonsHTML(disabled = {}) {
   for (let i = 0; i < 65; i++) {
     const id = `Emoticon${i}`;
     if (!disabled[id]) {
-      html += `<img onclick="sendEmot(${i});" alt="Émoticône n°${i}" src="https://raw.githubusercontent.com/MythUp/Extension-de-Tarot-en-ligne---GitHub/refs/heads/main/emots/Emoticon${i}.png" class="emotIcon" style="margin: 0 4px;">`;
+      html += `<img onclick="sendEmot(${i});" alt="Émoticône n°${i}" src="https://raw.githubusercontent.com/MythUp/tarot-plus/refs/heads/main/emots/Emoticon${i}.png" class="emotIcon" style="margin: 0 4px;">`;
     }
   }
 
