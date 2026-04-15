@@ -68,7 +68,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (toggleEmoticons) {
         toggleEmoticons.addEventListener("change", () => {
-            ensureAndSet("emoticonsEnabled", toggleEmoticons.checked);
+            ensureAndSet("emoticonsEnabled", toggleEmoticons.checked, false);
         });
     }
 

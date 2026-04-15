@@ -1,5 +1,9 @@
 const isDark = document.querySelector("#webBody.themeSombre") !== null;
 let isReplacingEmoticons = false;
+let emoticonsEnabled = false;
+let emoticonsObserver = null;
+let emoticonsScriptInjected = false;
+let emoticonToolbarSnapshot = null;
 let unicodeDecodingEnabled = false;
 let unicodeDecodingObserver = null;
 let updateEmoticons = null;
@@ -120,6 +124,153 @@ function isUnicodeTextInput(element) {
 
 function isUnicodeTextControl(element) {
   return element instanceof HTMLTextAreaElement || isUnicodeTextInput(element);
+}
+
+const emoticonToolbarSelector = "#chatBg td#chtput";
+const emoticonImageSourceMarker = "MythUp/Extension-de-Tarot-en-ligne---GitHub/refs/heads/";
+
+function getEmoticonToolbar() {
+  return document.querySelector(emoticonToolbarSelector);
+}
+
+function generateEmoticonsHTML(disabled = {}) {
+  let html = "";
+
+  for (let i = 0; i < 65; i++) {
+    const id = `Emoticon${i}`;
+    if (!disabled[id]) {
+      html += `<img onclick="sendEmot(${i});" alt="Émoticône n°${i}" src="https://raw.githubusercontent.com/MythUp/Extension-de-Tarot-en-ligne---GitHub/refs/heads/main/emots/Emoticon${i}.png" class="emotIcon" style="margin: 0 4px;">`;
+    }
+  }
+
+  return html;
+}
+
+function isCustomEmoticonImage(img) {
+  return img.src.includes(emoticonImageSourceMarker);
+}
+
+function injectEmoticonsScript() {
+  if (emoticonsScriptInjected) {
+    return;
+  }
+
+  const script = document.createElement("script");
+  script.src = chrome.runtime.getURL("emot.js");
+  script.type = "text/javascript";
+  script.onload = () => console.log("[EXT] 📦 Script emot.js injecté avec succès !");
+  (document.body || document.documentElement).appendChild(script);
+  emoticonsScriptInjected = true;
+}
+
+function ensureEmoticonsObserver() {
+  if (emoticonsObserver || !document.body) {
+    return;
+  }
+
+  emoticonsObserver = new MutationObserver(() => {
+    if (isReplacingEmoticons) {
+      return;
+    }
+
+    syncEmoticonToolbar();
+  });
+
+  emoticonsObserver.observe(document.body, { childList: true, subtree: true });
+  console.log("[EXT] 👁️ Observation du DOM activée.");
+}
+
+function restoreEmoticonToolbar(td = getEmoticonToolbar()) {
+  if (!td || emoticonToolbarSnapshot === null || td.querySelector("input#chatInput")) {
+    return false;
+  }
+
+  const snapshot = emoticonToolbarSnapshot;
+  emoticonToolbarSnapshot = null;
+
+  if (td.innerHTML !== snapshot) {
+    isReplacingEmoticons = true;
+    td.innerHTML = snapshot;
+    isReplacingEmoticons = false;
+    console.log("[EXT] 🔁 Émoticônes du site restaurées.");
+  }
+
+  return true;
+}
+
+function syncEmoticonToolbar() {
+  const td = getEmoticonToolbar();
+  if (!td) {
+    return;
+  }
+
+  if (!emoticonsEnabled) {
+    restoreEmoticonToolbar(td);
+    return;
+  }
+
+  if (td.querySelector("input#chatInput")) {
+    return;
+  }
+
+  const emotes = td.querySelectorAll("img");
+  const hasMine = emotes.length > 0 && Array.from(emotes).every(isCustomEmoticonImage);
+  if (hasMine) {
+    return;
+  }
+
+  if (emoticonToolbarSnapshot === null) {
+    emoticonToolbarSnapshot = td.innerHTML;
+  }
+
+  console.log("[EXT] 🔄 Remplacement des émoticônes du site...");
+  isReplacingEmoticons = true;
+  if (typeof updateEmoticons === "function") {
+    updateEmoticons();
+  }
+  isReplacingEmoticons = false;
+}
+
+function setEmoticonsEnabled(enabled) {
+  emoticonsEnabled = Boolean(enabled);
+  window.disableEmoticons = !emoticonsEnabled;
+
+  if (emoticonsEnabled) {
+    updateEmoticons = () => {
+      if (!emoticonsEnabled) {
+        return;
+      }
+
+      const td = getEmoticonToolbar();
+      if (!td || td.querySelector("input#chatInput")) {
+        return;
+      }
+
+      chrome.storage.local.get(["disabledEmoticons"], (storage) => {
+        if (!emoticonsEnabled) {
+          return;
+        }
+
+        const disabled = storage.disabledEmoticons ?? {};
+        const nextHtml = generateEmoticonsHTML(disabled);
+
+        if (emoticonToolbarSnapshot === null && td.innerHTML !== nextHtml) {
+          emoticonToolbarSnapshot = td.innerHTML;
+        }
+
+        td.innerHTML = nextHtml;
+        console.log("[EXT] 🔁 Émoticônes mises à jour dynamiquement.");
+      });
+    };
+
+    injectEmoticonsScript();
+    ensureEmoticonsObserver();
+    syncEmoticonToolbar();
+    return;
+  }
+
+  updateEmoticons = null;
+  syncEmoticonToolbar();
 }
 
 function rememberUnicodeTextNode(node) {
@@ -591,9 +742,14 @@ chrome.storage.local.get(
         return;
       }
 
-      if (changes.disabledEmoticons && data.emoticonsEnabled && typeof updateEmoticons === "function") {
+      if (changes.disabledEmoticons && emoticonsEnabled && typeof updateEmoticons === "function") {
         console.log("[EXT] 🆕 Changement détecté dans la config des émoticônes.");
         updateEmoticons();
+      }
+
+      if (changes.emoticonsEnabled) {
+        console.log("[EXT] 🧩 Changement détecté pour le mode émoticônes personnalisé.");
+        setEmoticonsEnabled(changes.emoticonsEnabled.newValue ?? true);
       }
 
       if (changes.unicodeDecodingEnabled) {
@@ -612,6 +768,8 @@ chrome.storage.local.get(
 
     syncForumShareButton();
 
+    setEmoticonsEnabled(data.emoticonsEnabled ?? true);
+
     setInterval(() => {
       const currentURL = location.href;
       if (currentURL !== forumShareButtonLastURL) {
@@ -620,71 +778,7 @@ chrome.storage.local.get(
       }
     }, 1000);
 
-    // === 🔹 EMOTICONS PERSONNALISÉES ===
-    if (data.emoticonsEnabled) {
-      console.log("[EXT] 🎨 Mode émoticônes personnalisé activé.");
-
-      // Génère le HTML des émoticônes autorisées
-      const generateEmoticonsHTML = (disabled = {}) => {
-        let html = "";
-        for (let i = 0; i < 65; i++) {
-          const id = `Emoticon${i}`;
-          if (!disabled[id]) {
-            html += `<img onclick="sendEmot(${i});" alt="Émoticône n°${i}" src="https://raw.githubusercontent.com/MythUp/Extension-de-Tarot-en-ligne---GitHub/refs/heads/main/emots/Emoticon${i}.png" class="emotIcon" style="margin: 0 4px;">`;
-          }
-        }
-        return html;
-      };
-
-      const isMine = (img) => img.src.includes("MythUp/Extension-de-Tarot-en-ligne---GitHub/refs/heads/");
-
-      updateEmoticons = () => {
-        const td = document.querySelector("#chatBg td#chtput");
-        if (!td || td.querySelector("input#chatInput")) return;
-
-        chrome.storage.local.get(["disabledEmoticons"], (storage) => {
-          const disabled = storage.disabledEmoticons ?? {};
-          td.innerHTML = generateEmoticonsHTML(disabled);
-          console.log("[EXT] 🔁 Émoticônes mises à jour dynamiquement.");
-        });
-      };
-
-      const replaceTdContentIfNeeded = () => {
-        const td = document.querySelector("#chatBg td#chtput");
-        if (!td || td.querySelector("input#chatInput")) {
-          console.log("[EXT] ⏸️ <td> indisponible ou contient un <input>. Annulation.");
-          return;
-        }
-
-        const emotes = td.querySelectorAll("img");
-        const hasMine = Array.from(emotes).every(isMine);
-        if (hasMine) {
-          console.log("[EXT] ✅ Émoticônes déjà injectées.");
-          return;
-        }
-
-        console.log("[EXT] 🔄 Remplacement des émoticônes du site...");
-        isReplacingEmoticons = true;
-        updateEmoticons();
-        isReplacingEmoticons = false;
-      };
-
-      // Surveiller le DOM
-      const observer = new MutationObserver(() => {
-        if (isReplacingEmoticons) return;
-        replaceTdContentIfNeeded();
-      });
-      observer.observe(document.body, { childList: true, subtree: true });
-      console.log("[EXT] 👁️ Observation du DOM activée.");
-
-      // Injecte le script nécessaire
-      const script = document.createElement("script");
-      script.src = chrome.runtime.getURL("emot.js");
-      script.type = "text/javascript";
-      script.onload = () =>
-        console.log("[EXT] 📦 Script emot.js injecté avec succès !");
-      document.body.appendChild(script);
-    }
+    console.log("[EXT] 🎨 Gestion dynamique des émoticônes initialisée.");
 
   }
 );
