@@ -243,17 +243,13 @@ function installUnicodeTransportBridges() {
 
   if (typeof nativeEscape === "function") {
     window.escape = function(value) {
-      if (!unicodeDecodingEnabled) {
-        return nativeEscape(value);
-      }
-
       return escapeUnicodeTransportValue(value);
     };
   }
 
   if (nativeFormDataAppend && nativeFormDataSet) {
     FormData.prototype.append = function(name, value, filename) {
-      const nextValue = unicodeDecodingEnabled && typeof value === "string"
+      const nextValue = typeof value === "string"
         ? encodeUnicodeTransportValue(value)
         : value;
 
@@ -263,7 +259,7 @@ function installUnicodeTransportBridges() {
     };
 
     FormData.prototype.set = function(name, value, filename) {
-      const nextValue = unicodeDecodingEnabled && typeof value === "string"
+      const nextValue = typeof value === "string"
         ? encodeUnicodeTransportValue(value)
         : value;
 
@@ -275,17 +271,13 @@ function installUnicodeTransportBridges() {
 
   if (nativeURLSearchParamsAppend && nativeURLSearchParamsSet) {
     URLSearchParams.prototype.append = function(name, value) {
-      const nextValue = unicodeDecodingEnabled
-        ? encodeUnicodeTransportValue(String(value))
-        : String(value);
+      const nextValue = encodeUnicodeTransportValue(String(value));
 
       return nativeURLSearchParamsAppend.call(this, name, nextValue);
     };
 
     URLSearchParams.prototype.set = function(name, value) {
-      const nextValue = unicodeDecodingEnabled
-        ? encodeUnicodeTransportValue(String(value))
-        : String(value);
+      const nextValue = encodeUnicodeTransportValue(String(value));
 
       return nativeURLSearchParamsSet.call(this, name, nextValue);
     };
@@ -295,10 +287,6 @@ function installUnicodeTransportBridges() {
 }
 
 function syncUnicodeFormData(event) {
-  if (!unicodeDecodingEnabled) {
-    return;
-  }
-
   const form = event.target;
   if (!(form instanceof HTMLFormElement)) {
     return;
