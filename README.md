@@ -1,4 +1,4 @@
-# Extension-de-Tarot-en-ligne
+# Tarot+
 
 Cette extension ajoute des icônes personnalisées pour améliorer l'expérience utilisateur sur le site [jeu-tarot-en-ligne.com](https://jeu-tarot-en-ligne.com).
 
