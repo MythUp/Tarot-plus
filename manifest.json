@@ -9,7 +9,7 @@
       "128": "icon.png"
     },
     "version": "3.4.0",
-    "description": "Ajoute des fonctionnalités à jeu-tarot-en-ligne.com pour améliorer votre expérience de jeu. Corrige aussi certains bugs présent sur le site.",
+    "description": "Ajoute des fonctionnalités à jeu-tarot-en-ligne.com pour améliorer votre expérience de jeu et corriger des bugs.",
     "permissions": [
       "activeTab",
       "storage",
