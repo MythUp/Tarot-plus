@@ -8,7 +8,7 @@
 
     function isForumPage() {
         return location.hostname.endsWith("jeu-tarot-en-ligne.com") &&
-               /^\/forum-sujet(\/\d+(\/[^/]+)?)?$/.test(location.pathname);
+               /^\/forum-sujet\/\d+(?:\/[^/]+)?\/?$/.test(location.pathname);
     }
 
     function clearRetryTimer() {
