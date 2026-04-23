@@ -132,31 +132,7 @@ const profanityRevealSelector = "[data-tarot-profanity-revealed='true']";
 const profanityMarkerSelector = "[data-tarot-profanity-original-html]";
 const profanityTooltipHiddenSelector = "[role='tooltip'][data-tarot-profanity-hidden='true']";
 const profanitySkipSelector = `${profanityRevealSelector}, ${profanityMarkerSelector}`;
-const profanityTerms = [
-  "salut",
-  "idiot",
-  "imbécile",
-  "crétin",
-  "connard",
-  "connasse",
-  "con",
-  "abruti",
-  "merde",
-  "stupide",
-  "débile",
-  "minable",
-  "bouffon",
-  "enfoiré",
-  "salaud",
-  "ordure",
-  "pourri",
-  "raclure",
-  "fdp",
-  "salope",
-  "salaud",
-  "fils de pute",
-  "pute"
-];
+const profanityTermsResourceUrl = chrome.runtime.getURL("profanity-terms.json");
 
 let profanityEnabled = true;
 let profanityMode = "mask";
@@ -165,23 +141,104 @@ let profanityObserver = null;
 let profanityRefreshQueued = false;
 let profanityFilterBusy = false;
 let profanityNeedsFullReset = true;
+let profanityEntries = [];
+let profanityTermsLoadToken = 0;
 const profanityObserverOptions = {
   childList: true,
   characterData: true,
   subtree: true,
 };
 const profanityWordCharacterPattern = /[\p{L}\p{N}]/u;
-const profanityEntries = profanityTerms.map((term) => {
-  const normalizedTerm = normalizeProfanityText(term);
-
-  return {
-    normalized: normalizedTerm,
-    tolerance: normalizedTerm.length <= 5 ? 1 : 2,
-  };
-});
 
 function normalizeProfanityText(value) {
   return typeof value === "string" ? value.toLocaleLowerCase("fr-FR") : "";
+}
+
+function extractProfanityTerms(payload) {
+  if (Array.isArray(payload)) {
+    return payload;
+  }
+
+  if (payload && Array.isArray(payload.terms)) {
+    return payload.terms;
+  }
+
+  return [];
+}
+
+function normalizeProfanityTermList(terms) {
+  const normalizedTerms = [];
+  const seenTerms = new Set();
+
+  for (const term of Array.isArray(terms) ? terms : []) {
+    const cleanedTerm = typeof term === "string" ? term.trim() : "";
+
+    if (!cleanedTerm) {
+      continue;
+    }
+
+    const normalizedKey = normalizeProfanityText(cleanedTerm);
+
+    if (seenTerms.has(normalizedKey)) {
+      continue;
+    }
+
+    seenTerms.add(normalizedKey);
+    normalizedTerms.push(cleanedTerm);
+  }
+
+  return normalizedTerms;
+}
+
+function buildProfanityEntries(terms) {
+  return normalizeProfanityTermList(terms).map((term) => {
+    const normalizedTerm = normalizeProfanityText(term);
+
+    return {
+      normalized: normalizedTerm,
+      tolerance: normalizedTerm.length <= 5 ? 1 : 2,
+    };
+  });
+}
+
+async function readProfanityTermsFromJson() {
+  const response = await fetch(profanityTermsResourceUrl, { cache: "no-store" });
+
+  if (!response.ok) {
+    throw new Error(`Impossible de charger ${profanityTermsResourceUrl} (${response.status})`);
+  }
+
+  const payload = await response.json();
+  return extractProfanityTerms(payload);
+}
+
+async function loadProfanityTerms() {
+  const loadToken = ++profanityTermsLoadToken;
+
+  try {
+    const [defaultTerms, storage] = await Promise.all([
+      readProfanityTermsFromJson(),
+      new Promise((resolve) => chrome.storage.local.get(["profanityTermsCustom"], resolve)),
+    ]);
+
+    if (loadToken !== profanityTermsLoadToken) {
+      return profanityEntries;
+    }
+
+    const effectiveTerms = Array.isArray(storage.profanityTermsCustom)
+      ? storage.profanityTermsCustom
+      : defaultTerms;
+
+    profanityEntries = buildProfanityEntries(effectiveTerms);
+    return profanityEntries;
+  } catch (error) {
+    console.error("[EXT] Impossible de charger la liste d'insultes.", error);
+    if (loadToken === profanityTermsLoadToken) {
+      profanityEntries = [];
+    }
+
+    return profanityEntries;
+  }
 }
 
 function isProfanityWordCharacter(character) {
@@ -1519,66 +1576,77 @@ chrome.storage.local.get(
 
     shareForumEnabled = data.shareForum ?? true;
 
-    setProfanityFilterState(
-      data.censureEnabled ?? true,
-      data.censureMode ?? "mask",
-      data.censureScope ?? "insult"
-    );
+    void loadProfanityTerms().then(() => {
+      setProfanityFilterState(
+        data.censureEnabled ?? true,
+        data.censureMode ?? "mask",
+        data.censureScope ?? "insult"
+      );
 
-    if (data.unicodeDecodingEnabled ?? true) {
-      startUnicodeDecoding();
-    }
-
-    chrome.storage.onChanged.addListener((changes, ns) => {
-      if (ns !== "local") {
-        return;
+      if (data.unicodeDecodingEnabled ?? true) {
+        startUnicodeDecoding();
       }
 
-      if (changes.disabledEmoticons && emoticonsEnabled && typeof updateEmoticons === "function") {
-        console.log("[EXT] 🆕 Changement détecté dans la config des émoticônes.");
-        updateEmoticons();
-      }
-
-      if (changes.emoticonsEnabled) {
-        console.log("[EXT] 🧩 Changement détecté pour le mode émoticônes personnalisé.");
-        setEmoticonsEnabled(changes.emoticonsEnabled.newValue ?? true);
-      }
-
-      if (changes.unicodeDecodingEnabled) {
-        if (changes.unicodeDecodingEnabled.newValue) {
-          startUnicodeDecoding();
-        } else {
-          stopUnicodeDecoding();
+      chrome.storage.onChanged.addListener((changes, ns) => {
+        if (ns !== "local") {
+          return;
         }
-      }
 
-      if (changes.shareForum) {
-        shareForumEnabled = changes.shareForum.newValue ?? true;
-        syncForumShareButton();
-      }
+        if (changes.disabledEmoticons && emoticonsEnabled && typeof updateEmoticons === "function") {
+          console.log("[EXT] 🆕 Changement détecté dans la config des émoticônes.");
+          updateEmoticons();
+        }
 
-      if (changes.censureEnabled || changes.censureMode || changes.censureScope) {
-        setProfanityFilterState(
-          changes.censureEnabled ? changes.censureEnabled.newValue ?? true : profanityEnabled,
-          changes.censureMode ? changes.censureMode.newValue ?? profanityMode : profanityMode,
-          changes.censureScope ? changes.censureScope.newValue ?? profanityScope : profanityScope
-        );
-      }
+        if (changes.emoticonsEnabled) {
+          console.log("[EXT] 🧩 Changement détecté pour le mode émoticônes personnalisé.");
+          setEmoticonsEnabled(changes.emoticonsEnabled.newValue ?? true);
+        }
+
+        if (changes.unicodeDecodingEnabled) {
+          if (changes.unicodeDecodingEnabled.newValue) {
+            startUnicodeDecoding();
+          } else {
+            stopUnicodeDecoding();
+          }
+        }
+
+        if (changes.shareForum) {
+          shareForumEnabled = changes.shareForum.newValue ?? true;
+          syncForumShareButton();
+        }
+
+        if (changes.profanityTermsCustom) {
+          void loadProfanityTerms().then(() => {
+            profanityNeedsFullReset = true;
+            if (profanityEnabled) {
+              applyProfanityFilter();
+            }
+          });
+        }
+
+        if (changes.censureEnabled || changes.censureMode || changes.censureScope) {
+          setProfanityFilterState(
+            changes.censureEnabled ? changes.censureEnabled.newValue ?? true : profanityEnabled,
+            changes.censureMode ? changes.censureMode.newValue ?? profanityMode : profanityMode,
+            changes.censureScope ? changes.censureScope.newValue ?? profanityScope : profanityScope
+          );
+        }
+      });
+
+      syncForumShareButton();
+
+      setEmoticonsEnabled(data.emoticonsEnabled ?? true);
+
+      setInterval(() => {
+        const currentURL = location.href;
+        if (currentURL !== forumShareButtonLastURL) {
+          forumShareButtonLastURL = currentURL;
+          syncForumShareButton();
+        }
+      }, 1000);
+
+      console.log("[EXT] 🎨 Gestion dynamique des émoticônes initialisée.");
     });
-
-    syncForumShareButton();
-
-    setEmoticonsEnabled(data.emoticonsEnabled ?? true);
-
-    setInterval(() => {
-      const currentURL = location.href;
-      if (currentURL !== forumShareButtonLastURL) {
-        forumShareButtonLastURL = currentURL;
-        syncForumShareButton();
-      }
-    }, 1000);
-
-    console.log("[EXT] 🎨 Gestion dynamique des émoticônes initialisée.");
 
   }
 );

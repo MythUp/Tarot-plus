@@ -1,4 +1,17 @@
 const tarotUrlPattern = /^https:\/\/.*\.jeu-tarot-en-ligne\.com\/.*/;
+const profanityTermsResourceUrl = chrome.runtime.getURL("profanity-terms.json");
+
+let profanityDefaultTerms = null;
+let profanityWarningModalInstance = null;
+let profanityListModalInstance = null;
+let profanityWarningModalElement = null;
+let profanityListModalElement = null;
+let profanityListTextareaElement = null;
+let profanityListStatusElement = null;
+let profanityManageButtonElement = null;
+let profanityWarningConfirmButtonElement = null;
+let profanityListSaveButtonElement = null;
+let profanityListResetButtonElement = null;
 
 document.addEventListener("DOMContentLoaded", () => {
     const toggleExtension = document.getElementById("toggleExtension");
@@ -9,6 +22,63 @@ document.addEventListener("DOMContentLoaded", () => {
     const censureModeInputs = Array.from(document.querySelectorAll("input[name='censureMode']"));
     const censureScopeInputs = Array.from(document.querySelectorAll("input[name='censureScope']"));
     const openSiteContainer = document.querySelector(".openSiteButton");
+    profanityManageButtonElement = document.getElementById("manageProfanityListButton");
+    profanityWarningModalElement = document.getElementById("profanityWarningModal");
+    profanityListModalElement = document.getElementById("profanityListModal");
+    profanityListTextareaElement = document.getElementById("profanityListTextarea");
+    profanityListStatusElement = document.getElementById("profanityListStatus");
+    profanityWarningConfirmButtonElement = document.getElementById("confirmProfanityWarningButton");
+    profanityListSaveButtonElement = document.getElementById("saveProfanityListButton");
+    profanityListResetButtonElement = document.getElementById("resetProfanityListButton");
+
+    if (profanityWarningModalElement) {
+        profanityWarningModalInstance = new bootstrap.Modal(profanityWarningModalElement);
+    }
+
+    if (profanityListModalElement) {
+        profanityListModalInstance = new bootstrap.Modal(profanityListModalElement);
+    }
+
+    if (profanityManageButtonElement) {
+        profanityManageButtonElement.addEventListener("click", () => {
+            showProfanityWarning();
+        });
+    }
+
+    if (profanityWarningConfirmButtonElement) {
+        profanityWarningConfirmButtonElement.addEventListener("click", () => {
+            if (!profanityWarningModalInstance || !profanityWarningModalElement) {
+                void openProfanityListManager();
+                return;
+            }
+
+            profanityWarningModalElement.addEventListener(
+                "hidden.bs.modal",
+                () => {
+                    void openProfanityListManager();
+                },
+                { once: true }
+            );
+
+            profanityWarningModalInstance.hide();
+        });
+    }
+
+    if (profanityListSaveButtonElement) {
+        profanityListSaveButtonElement.addEventListener("click", () => {
+            void saveProfanityList();
+        });
+    }
+
+    if (profanityListResetButtonElement) {
+        profanityListResetButtonElement.addEventListener("click", () => {
+            void resetProfanityList();
+        });
+    }
+
+    void loadDefaultProfanityTerms().catch((error) => {
+        console.warn("Impossible de précharger la liste d'insultes.", error);
+    });
 
     chrome.storage.local.get([
         "enabledExt",
@@ -155,6 +225,177 @@ function setRadioValue(inputs, value) {
 function getSelectedRadioValue(inputs) {
     const selected = inputs.find((input) => input.checked);
     return selected ? selected.value : null;
+}
+
+function getStorageValue(keys) {
+    return new Promise((resolve) => {
+        chrome.storage.local.get(keys, resolve);
+    });
+}
+
+function setStorageValue(items) {
+    return new Promise((resolve) => {
+        chrome.storage.local.set(items, resolve);
+    });
+}
+
+function removeStorageValue(keys) {
+    return new Promise((resolve) => {
+        chrome.storage.local.remove(keys, resolve);
+    });
+}
+
+function normalizeProfanityList(terms) {
+    const cleanedTerms = [];
+    const seenTerms = new Set();
+
+    for (const term of Array.isArray(terms) ? terms : []) {
+        const cleanedTerm = typeof term === "string" ? term.trim() : "";
+
+        if (!cleanedTerm) {
+            continue;
+        }
+
+        const normalizedKey = cleanedTerm.toLocaleLowerCase("fr-FR");
+
+        if (seenTerms.has(normalizedKey)) {
+            continue;
+        }
+
+        seenTerms.add(normalizedKey);
+        cleanedTerms.push(cleanedTerm);
+    }
+
+    return cleanedTerms;
+}
+
+function extractProfanityTerms(payload) {
+    if (Array.isArray(payload)) {
+        return payload;
+    }
+
+    if (payload && Array.isArray(payload.terms)) {
+        return payload.terms;
+    }
+
+    return [];
+}
+
+async function loadDefaultProfanityTerms() {
+    if (Array.isArray(profanityDefaultTerms)) {
+        return profanityDefaultTerms;
+    }
+
+    const response = await fetch(profanityTermsResourceUrl, { cache: "no-store" });
+    if (!response.ok) {
+        throw new Error(`Impossible de charger ${profanityTermsResourceUrl}`);
+    }
+
+    profanityDefaultTerms = normalizeProfanityList(extractProfanityTerms(await response.json()));
+    return profanityDefaultTerms;
+}
+
+async function loadEffectiveProfanityTerms() {
+    const [defaultTerms, storage] = await Promise.all([
+        loadDefaultProfanityTerms(),
+        getStorageValue(["profanityTermsCustom"]),
+    ]);
+
+    return Array.isArray(storage.profanityTermsCustom)
+        ? normalizeProfanityList(storage.profanityTermsCustom)
+        : defaultTerms;
+}
+
+function formatProfanityList(terms) {
+    return normalizeProfanityList(terms).join("\n");
+}
+
+function parseProfanityListInput(value) {
+    const rawValue = typeof value === "string" ? value.trim() : "";
+
+    if (!rawValue) {
+        return [];
+    }
+
+    try {
+        const parsed = JSON.parse(rawValue);
+        const candidateTerms = Array.isArray(parsed)
+            ? parsed
+            : (parsed && Array.isArray(parsed.terms) ? parsed.terms : null);
+
+        if (candidateTerms) {
+            return normalizeProfanityList(candidateTerms);
+        }
+    } catch {
+        // Fall back to one term per line.
+    }
+
+    return normalizeProfanityList(rawValue.split(/\r?\n/));
+}
+
+function setProfanityListStatus(message, tone = "muted") {
+    if (!profanityListStatusElement) {
+        return;
+    }
+
+    profanityListStatusElement.textContent = message;
+    profanityListStatusElement.className = `small mt-2 text-${tone}`;
+}
+
+function showProfanityWarning() {
+    if (!profanityWarningModalInstance) {
+        void openProfanityListManager();
+        return;
+    }
+
+    profanityWarningModalInstance.show();
+}
+
+async function openProfanityListManager() {
+    if (!profanityListModalInstance || !profanityListTextareaElement) {
+        return;
+    }
+
+    try {
+        const effectiveTerms = await loadEffectiveProfanityTerms();
+        profanityListTextareaElement.value = formatProfanityList(effectiveTerms);
+        setProfanityListStatus(`Liste chargée (${effectiveTerms.length} entrées).`);
+        profanityListModalInstance.show();
+    } catch (error) {
+        console.error("Impossible de charger la liste d'insultes.", error);
+        setProfanityListStatus("Impossible de charger la liste.", "danger");
+        profanityListModalInstance.show();
+    }
+}
+
+async function saveProfanityList() {
+    if (!profanityListTextareaElement) {
+        return;
+    }
+
+    try {
+        const terms = parseProfanityListInput(profanityListTextareaElement.value);
+        await setStorageValue({ profanityTermsCustom: terms });
+        setProfanityListStatus(`Liste enregistrée (${terms.length} entrées).`, "success");
+    } catch (error) {
+        console.error("Impossible d'enregistrer la liste d'insultes.", error);
+        setProfanityListStatus("Enregistrement impossible.", "danger");
+    }
+}
+
+async function resetProfanityList() {
+    try {
+        await removeStorageValue(["profanityTermsCustom"]);
+        const defaultTerms = await loadDefaultProfanityTerms();
+        if (profanityListTextareaElement) {
+            profanityListTextareaElement.value = formatProfanityList(defaultTerms);
+        }
+
+        setProfanityListStatus(`Liste réinitialisée (${defaultTerms.length} entrées).`, "success");
+    } catch (error) {
+        console.error("Impossible de réinitialiser la liste d'insultes.", error);
+        setProfanityListStatus("Réinitialisation impossible.", "danger");
+    }
 }
 
 // Charger les émoticônes et les afficher

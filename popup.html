@@ -39,13 +39,14 @@
       </div>
     </div>
 
-    <div class="d-flex align-items-center justify-content-between mb-2 censure-toggle-row">
-      <div class="form-check form-switch d-flex align-items-center mb-0">
+    <div class="d-flex align-items-center censure-toggle-row mb-3">
+      <div class="form-check form-switch d-flex align-items-center">
         <input class="form-check-input me-2" type="checkbox" id="toggleCensure">
         <label class="form-check-label mb-0" for="toggleCensure">Censure</label>
       </div>
-      <button class="btn btn-sm btn-outline-secondary censure-toggle-button" type="button" data-bs-toggle="collapse" data-bs-target="#censureOptions" aria-expanded="false" aria-controls="censureOptions">
-        &gt;
+      <button class="btn btn-sm censure-toggle-button flex-shrink-0" type="button" data-bs-toggle="collapse" data-bs-target="#censureOptions" aria-expanded="false" aria-controls="censureOptions" aria-label="Afficher ou masquer les options de censure">
+        <span class="censure-toggle-icon" aria-hidden="true">▸</span>
+        <span class="visually-hidden">Afficher ou masquer les options de censure</span>
       </button>
     </div>
 
@@ -74,6 +75,10 @@
           <input class="form-check-input" type="radio" name="censureScope" id="censureScopeMessage" value="message">
           <label class="form-check-label" for="censureScopeMessage">Message complet</label>
         </div>
+
+        <button id="manageProfanityListButton" class="btn btn-sm btn-outline-warning d-block mx-auto mt-3" type="button">
+          Afficher / gérer la liste d'insultes
+        </button>
       </div>
     </div>
 
@@ -100,16 +105,53 @@
         <!-- Slides injectés ici par JS -->
       </div>
       <button class="carousel-control-prev" type="button" data-bs-target="#emoticonsCarousel" data-bs-slide="prev">
-        ⏮
+        ◂
       </button>
       <button class="carousel-control-next" type="button" data-bs-target="#emoticonsCarousel" data-bs-slide="next">
-        ⏭
+        ▸
       </button>
     </div>
 
     <div class="text-center text-muted small mt-2">
       Version <span id="version"></span> | Développé avec ❤️ par
       <a href="https://github.com/MythUp" class="text-reset text-decoration-none" target="_blank" rel="noopener noreferrer">MythUp_</a>
+    </div>
+  </div>
+
+  <div class="modal fade popup-modal" id="profanityWarningModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Avertissement</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-0">Cette liste contient du contenu potentiellement offensant. Voulez-vous continuer ?</p>
+        </div>
+        <div class="modal-footer">
+          <button id="confirmProfanityWarningButton" type="button" class="btn btn-warning d-block mx-auto">Afficher la liste</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade popup-modal" id="profanityListModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Gestion de la liste</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+        </div>
+        <div class="modal-body">
+          <p class="small text-muted mb-2">Une entrée par ligne.</p>
+          <textarea id="profanityListTextarea" class="form-control profanity-list-textarea" rows="12" spellcheck="false"></textarea>
+          <div id="profanityListStatus" class="small mt-2"></div>
+        </div>
+        <div class="modal-footer">
+          <button id="resetProfanityListButton" type="button" class="btn btn-outline-secondary">Réinitialiser</button>
+          <button id="saveProfanityListButton" type="button" class="btn btn-primary">Enregistrer</button>
+        </div>
+      </div>
     </div>
   </div>
 </body>
