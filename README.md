@@ -8,7 +8,7 @@ Tarot+ est une extension pour https://jeu-tarot-en-ligne.com qui enrichit l'inte
   - Microsoft Edge Add-ons : https://microsoftedge.microsoft.com/addons/detail/jeutarotenlignecom•em/cjbhkjcikmgcmimfohpeidokeffgfibj
   - Opera Add-ons : https://addons.opera.com/fr/extensions/details/jeu-tarot-en-lignecomemoji/
 - Développement / installation locale :
-  1. Télécharger ou cloner le projet depuis GitHub :
+  1. [Télécharger](https://github.com/MythUp/Tarot-plus/archive/refs/heads/main.zip) ou cloner le projet depuis GitHub :
      ```bash
      git clone https://github.com/MythUp/Tarot-plus.git
      ```
