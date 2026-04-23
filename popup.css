@@ -65,6 +65,28 @@ hr {
   display: none;
 }
 
+.censure-toggle-row {
+  background-color: #f8f9fa;
+  padding: 0.85rem 1rem;
+  border-radius: 0.5rem;
+  box-shadow: 0 0 0.25rem rgba(0, 0, 0, 0.05);
+}
+
+.censure-toggle-button {
+  width: 2.25rem;
+  min-width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.censure-options-panel {
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 0.5rem;
+}
+
 body.dark-mode {
   background-color: #1d160f;
   color: #f8f9fa;
@@ -73,6 +95,26 @@ body.dark-mode {
 body.dark-mode #toggleExtensionContainer {
   background-color: #2a2015;
   box-shadow: 0 0 0.25rem rgba(255, 255, 255, 0.05);
+}
+
+body.dark-mode .censure-toggle-row {
+  background-color: #2a2015;
+  box-shadow: 0 0 0.25rem rgba(255, 255, 255, 0.05);
+}
+
+body.dark-mode .censure-options-panel {
+  background-color: #20180f;
+  border-color: #5f4b34;
+}
+
+body.dark-mode .censure-toggle-button {
+  color: #efe7da;
+  border-color: #4c3a2b;
+}
+
+body.dark-mode .censure-toggle-button:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
 }
 
 body.dark-mode .form-check-label,

@@ -126,6 +126,783 @@ function isUnicodeTextControl(element) {
   return element instanceof HTMLTextAreaElement || isUnicodeTextInput(element);
 }
 
+const profanityPlaceholderText = "** Censure **";
+const profanityChatSelector = "#chat, [role='tooltip']";
+const profanityRevealSelector = "[data-tarot-profanity-revealed='true']";
+const profanityMarkerSelector = "[data-tarot-profanity-original-html]";
+const profanityTooltipHiddenSelector = "[role='tooltip'][data-tarot-profanity-hidden='true']";
+const profanitySkipSelector = `${profanityRevealSelector}, ${profanityMarkerSelector}`;
+const profanityTerms = [
+  "salut",
+  "idiot",
+  "imbécile",
+  "crétin",
+  "connard",
+  "connasse",
+  "con",
+  "abruti",
+  "merde",
+  "stupide",
+  "débile",
+  "minable",
+  "bouffon",
+  "enfoiré",
+  "salaud",
+  "ordure",
+  "pourri",
+  "raclure",
+  "fdp",
+  "salope",
+  "salaud",
+  "fils de pute",
+  "pute"
+];
+
+let profanityEnabled = true;
+let profanityMode = "mask";
+let profanityScope = "insult";
+let profanityObserver = null;
+let profanityRefreshQueued = false;
+let profanityFilterBusy = false;
+let profanityNeedsFullReset = true;
+const profanityObserverOptions = {
+  childList: true,
+  characterData: true,
+  subtree: true,
+};
+const profanityWordCharacterPattern = /[\p{L}\p{N}]/u;
+const profanityEntries = profanityTerms.map((term) => {
+  const normalizedTerm = normalizeProfanityText(term);
+
+  return {
+    normalized: normalizedTerm,
+    tolerance: normalizedTerm.length <= 5 ? 1 : 2,
+  };
+});
+
+function normalizeProfanityText(value) {
+  return typeof value === "string" ? value.toLocaleLowerCase("fr-FR") : "";
+}
+
+function isProfanityWordCharacter(character) {
+  return typeof character === "string" && character.length > 0 && profanityWordCharacterPattern.test(character);
+}
+
+function levenshteinWithinLimit(source, target, limit) {
+  if (Math.abs(source.length - target.length) > limit) {
+    return false;
+  }
+
+  let previousRow = Array.from({ length: target.length + 1 }, (_, index) => index);
+
+  for (let sourceIndex = 0; sourceIndex < source.length; sourceIndex += 1) {
+    const sourceCharacter = source[sourceIndex];
+    const currentRow = [sourceIndex + 1];
+    let rowMinimum = currentRow[0];
+
+    for (let targetIndex = 0; targetIndex < target.length; targetIndex += 1) {
+      const targetCharacter = target[targetIndex];
+      const substitutionCost = sourceCharacter === targetCharacter ? 0 : 1;
+      const deletionCost = previousRow[targetIndex + 1] + 1;
+      const insertionCost = currentRow[targetIndex] + 1;
+      const substitutionOrMatchCost = previousRow[targetIndex] + substitutionCost;
+      const currentDistance = Math.min(deletionCost, insertionCost, substitutionOrMatchCost);
+
+      currentRow.push(currentDistance);
+      rowMinimum = Math.min(rowMinimum, currentDistance);
+    }
+
+    if (rowMinimum > limit) {
+      return false;
+    }
+
+    previousRow = currentRow;
+  }
+
+  return previousRow[target.length] <= limit;
+}
+
+function mergeProfanityMatchSpans(spans) {
+  if (!spans.length) {
+    return [];
+  }
+
+  const sortedSpans = [...spans].sort((left, right) => left.start - right.start || left.end - right.end);
+  const mergedSpans = [];
+  let currentSpan = { ...sortedSpans[0] };
+
+  for (let index = 1; index < sortedSpans.length; index += 1) {
+    const nextSpan = sortedSpans[index];
+
+    if (nextSpan.start <= currentSpan.end) {
+      currentSpan.end = Math.max(currentSpan.end, nextSpan.end);
+      continue;
+    }
+
+    mergedSpans.push(currentSpan);
+    currentSpan = { ...nextSpan };
+  }
+
+  mergedSpans.push(currentSpan);
+  return mergedSpans;
+}
+
+function getProfanityMatchSpans(value) {
+  if (typeof value !== "string" || !value.trim()) {
+    return [];
+  }
+
+  const normalizedValue = normalizeProfanityText(value);
+  const spans = [];
+
+  for (const term of profanityEntries) {
+    const normalizedTerm = term.normalized;
+    const tolerance = term.tolerance;
+    const termLength = normalizedTerm.length;
+    const minLength = Math.max(1, termLength - tolerance);
+    const maxLength = termLength + tolerance;
+
+    for (let startIndex = 0; startIndex < normalizedValue.length; startIndex += 1) {
+      if (startIndex > 0 && isProfanityWordCharacter(normalizedValue[startIndex - 1])) {
+        continue;
+      }
+
+      if (/\s/u.test(normalizedValue[startIndex] ?? "")) {
+        continue;
+      }
+
+      for (let length = minLength; length <= maxLength && startIndex + length <= normalizedValue.length; length += 1) {
+        const endIndex = startIndex + length;
+
+        if (endIndex < normalizedValue.length && isProfanityWordCharacter(normalizedValue[endIndex])) {
+          continue;
+        }
+
+        const candidate = normalizedValue.slice(startIndex, endIndex);
+
+        if (/\s/u.test(candidate)) {
+          continue;
+        }
+
+        if (levenshteinWithinLimit(normalizedTerm, candidate, tolerance)) {
+          spans.push({ end: endIndex, start: startIndex });
+          break;
+        }
+      }
+    }
+  }
+
+  return mergeProfanityMatchSpans(spans);
+}
+
+function containsProfanity(value) {
+  return getProfanityMatchSpans(value).length > 0;
+}
+
+function appendChatNodeSpec(fragment, spec) {
+  if (spec.kind === "text") {
+    fragment.appendChild(document.createTextNode(spec.value));
+    return;
+  }
+
+  fragment.appendChild(spec.node.cloneNode(true));
+}
+
+function serializeChatNodeSpecs(specs) {
+  const wrapper = document.createElement("div");
+
+  specs.forEach((spec) => {
+    appendChatNodeSpec(wrapper, spec);
+  });
+
+  return wrapper.innerHTML;
+}
+
+function getNodeListText(nodes) {
+  return nodes.map((node) => node.textContent ?? "").join("");
+}
+
+function serializeText(value) {
+  const wrapper = document.createElement("div");
+  wrapper.textContent = value;
+  return wrapper.innerHTML;
+}
+
+function isProfanityRevealElement(element) {
+  return element instanceof Element && element.matches(profanityRevealSelector);
+}
+
+function isProfanityMarkerElement(element) {
+  return element instanceof Element && element.matches(profanityMarkerSelector);
+}
+
+function createProfanityMarker(originalHtml, { clickable, block, hidden, displaySuffixText = "" }) {
+  const marker = document.createElement("span");
+  marker.dataset.tarotProfanityOriginalHtml = originalHtml;
+  marker.dataset.tarotProfanityBlock = block ? "true" : "false";
+  marker.textContent = hidden ? "" : `${profanityPlaceholderText}${displaySuffixText}`;
+
+  if (hidden) {
+    marker.style.display = "none";
+  } else {
+    marker.style.display = block ? "block" : "inline";
+  }
+
+  if (clickable && !hidden) {
+    marker.className = "tarot-profanity-censor tarot-profanity-censor-clickable";
+    marker.setAttribute("role", "button");
+    marker.setAttribute("tabindex", "0");
+    marker.title = "Cliquer pour afficher le message d'origine";
+    marker.style.cursor = "pointer";
+
+    const reveal = (event) => {
+      if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+
+      revealProfanityMarker(marker);
+    };
+
+    marker.addEventListener("click", reveal);
+    marker.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        reveal(event);
+      }
+    });
+  } else {
+    marker.className = hidden ? "tarot-profanity-delete" : "tarot-profanity-censor";
+  }
+
+  return marker;
+}
+
+function createProfanityRevealWrapper(originalHtml, block) {
+  const wrapper = document.createElement("span");
+  wrapper.dataset.tarotProfanityRevealed = "true";
+  wrapper.className = "tarot-profanity-revealed";
+  wrapper.style.display = block ? "block" : "inline";
+  wrapper.innerHTML = originalHtml;
+  return wrapper;
+}
+
+function revealProfanityMarker(marker) {
+  if (!marker || !marker.isConnected) {
+    return;
+  }
+
+  const originalHtml = marker.dataset.tarotProfanityOriginalHtml ?? "";
+  const block = marker.dataset.tarotProfanityBlock === "true";
+  const revealWrapper = createProfanityRevealWrapper(originalHtml, block);
+  marker.replaceWith(revealWrapper);
+}
+
+function restoreProfanityMarker(marker) {
+  if (!marker || !marker.isConnected) {
+    return;
+  }
+
+  const originalHtml = marker.dataset.tarotProfanityOriginalHtml ?? "";
+  marker.insertAdjacentHTML("beforebegin", originalHtml);
+  marker.remove();
+}
+
+function restoreProfanityMarkers(root = document) {
+  const markers = Array.from(root.querySelectorAll(profanityMarkerSelector));
+
+  markers.forEach((marker) => {
+    restoreProfanityMarker(marker);
+  });
+}
+
+function restoreProfanityRevealWrappers(root = document) {
+  const wrappers = Array.from(root.querySelectorAll(profanityRevealSelector));
+
+  wrappers.forEach((wrapper) => {
+    const originalHtml = wrapper.innerHTML;
+    wrapper.insertAdjacentHTML("beforebegin", originalHtml);
+    wrapper.remove();
+  });
+}
+
+function restoreProfanityHiddenTooltips(root = document) {
+  const tooltips = Array.from(root.querySelectorAll(profanityTooltipHiddenSelector));
+
+  tooltips.forEach((tooltip) => {
+    const originalDisplay = tooltip.dataset.tarotProfanityOriginalDisplay ?? "";
+
+    if (originalDisplay) {
+      tooltip.style.display = originalDisplay;
+    } else {
+      tooltip.style.removeProperty("display");
+    }
+
+    delete tooltip.dataset.tarotProfanityHidden;
+    delete tooltip.dataset.tarotProfanityOriginalDisplay;
+  });
+}
+
+function isProfanitySkipNode(node) {
+  return Boolean(node.parentElement && node.parentElement.closest(profanitySkipSelector));
+}
+
+function isTooltipContainer(container) {
+  return container.closest("[role='tooltip']") !== null;
+}
+
+function isChatTimestampNode(node) {
+  return node.nodeType === Node.ELEMENT_NODE && node.tagName === "FONT";
+}
+
+function findLastChatTimestampIndex(nodes) {
+  for (let index = nodes.length - 1; index >= 0; index -= 1) {
+    if (isChatTimestampNode(nodes[index])) {
+      return index;
+    }
+  }
+
+  return -1;
+}
+
+function findFirstMessageTextIndex(nodes, limitIndex) {
+  for (let index = 0; index < limitIndex; index += 1) {
+    const node = nodes[index];
+
+    if (node.nodeType !== Node.TEXT_NODE) {
+      continue;
+    }
+
+    if ((node.nodeValue ?? "").includes(":")) {
+      return index;
+    }
+  }
+
+  return -1;
+}
+
+function splitChatPrefixText(text) {
+  const colonIndex = text.indexOf(":");
+
+  if (colonIndex === -1) {
+    return null;
+  }
+
+  let splitIndex = colonIndex + 1;
+
+  while (splitIndex < text.length && /\s/u.test(text[splitIndex])) {
+    splitIndex += 1;
+  }
+
+  return {
+    bodyText: text.slice(splitIndex),
+    prefixText: text.slice(0, splitIndex),
+  };
+}
+
+function buildPreservedChatMessageParts(nodesToReplace) {
+  const timestampIndex = findLastChatTimestampIndex(nodesToReplace);
+  const contentEndIndex = timestampIndex === -1 ? nodesToReplace.length : timestampIndex;
+  const messageTextIndex = findFirstMessageTextIndex(nodesToReplace, contentEndIndex);
+
+  if (messageTextIndex === -1) {
+    return null;
+  }
+
+  const messageTextNode = nodesToReplace[messageTextIndex];
+  const splitText = splitChatPrefixText(messageTextNode.nodeValue ?? "");
+
+  if (!splitText) {
+    return null;
+  }
+
+  const prefixSpecs = [];
+
+  for (let index = 0; index < messageTextIndex; index += 1) {
+    prefixSpecs.push({ kind: "node", node: nodesToReplace[index] });
+  }
+
+  prefixSpecs.push({ kind: "text", value: splitText.prefixText });
+
+  const bodySpecs = [];
+
+  if (splitText.bodyText) {
+    bodySpecs.push({ kind: "text", value: splitText.bodyText });
+  }
+
+  for (let index = messageTextIndex + 1; index < contentEndIndex; index += 1) {
+    bodySpecs.push({ kind: "node", node: nodesToReplace[index] });
+  }
+
+  if (!bodySpecs.length) {
+    return null;
+  }
+
+  const suffixSpecs = [];
+
+  for (let index = contentEndIndex; index < nodesToReplace.length; index += 1) {
+    suffixSpecs.push({ kind: "node", node: nodesToReplace[index] });
+  }
+
+  return {
+    bodySpecs,
+    prefixSpecs,
+    suffixSpecs,
+  };
+}
+
+function replaceChatSegmentWithSpecs(container, nodesToReplace, prefixSpecs, marker, suffixSpecs) {
+  if (!nodesToReplace.length) {
+    return false;
+  }
+
+  const fragment = document.createDocumentFragment();
+
+  prefixSpecs.forEach((spec) => {
+    appendChatNodeSpec(fragment, spec);
+  });
+
+  fragment.appendChild(marker);
+
+  suffixSpecs.forEach((spec) => {
+    appendChatNodeSpec(fragment, spec);
+  });
+
+  container.insertBefore(fragment, nodesToReplace[0]);
+  nodesToReplace.forEach((node) => node.remove());
+  return true;
+}
+
+function serializeNodeList(nodes) {
+  return serializeChatNodeSpecs(nodes.map((node) => ({ kind: "node", node })));
+}
+
+function replaceProfanityInTextNode(textNode, clickable = true) {
+  const text = textNode.nodeValue ?? "";
+  const matches = getProfanityMatchSpans(text);
+
+  if (!matches.length) {
+    return false;
+  }
+
+  const fragment = document.createDocumentFragment();
+  let cursor = 0;
+
+  matches.forEach((match) => {
+    const start = match.start;
+    const end = match.end;
+
+    if (start > cursor) {
+      fragment.appendChild(document.createTextNode(text.slice(cursor, start)));
+    }
+
+    const originalHtml = serializeText(text.slice(start, end));
+    const marker = createProfanityMarker(originalHtml, {
+      clickable,
+      block: false,
+      hidden: false,
+    });
+
+    fragment.appendChild(marker);
+    cursor = end;
+  });
+
+  if (cursor < text.length) {
+    fragment.appendChild(document.createTextNode(text.slice(cursor)));
+  }
+
+  textNode.replaceWith(fragment);
+  return true;
+}
+
+function segmentContainsReveal(nodes) {
+  return nodes.some((node) => {
+    if (isProfanityRevealElement(node)) {
+      return true;
+    }
+
+    return node.nodeType === Node.ELEMENT_NODE && node.querySelector(profanityRevealSelector) !== null;
+  });
+}
+
+function segmentContainsMarkers(nodes) {
+  return nodes.some((node) => {
+    if (isProfanityMarkerElement(node)) {
+      return true;
+    }
+
+    return node.nodeType === Node.ELEMENT_NODE && node.querySelector(profanityMarkerSelector) !== null;
+  });
+}
+
+function replaceSegmentWithMarker(container, nodesToReplace, marker) {
+  if (!nodesToReplace.length) {
+    return;
+  }
+
+  const firstNode = nodesToReplace[0];
+  container.insertBefore(marker, firstNode);
+  nodesToReplace.forEach((node) => node.remove());
+}
+
+function processChatSegment(container, nodesToReplace) {
+  if (!nodesToReplace.length || segmentContainsReveal(nodesToReplace)) {
+    return false;
+  }
+
+  const segmentText = getNodeListText(nodesToReplace);
+
+  if (!containsProfanity(segmentText)) {
+    return false;
+  }
+
+  if (profanityMode === "delete") {
+    const marker = createProfanityMarker(serializeNodeList(nodesToReplace), {
+      clickable: false,
+      block: true,
+      hidden: true,
+    });
+
+    replaceSegmentWithMarker(container, nodesToReplace, marker);
+    return true;
+  }
+
+  if (profanityScope === "message") {
+    const preservedParts = buildPreservedChatMessageParts(nodesToReplace);
+
+    if (preservedParts) {
+      const bodyText = preservedParts.bodySpecs.map((spec) => (spec.kind === "text" ? spec.value : spec.node.textContent ?? "")).join("");
+
+      if (containsProfanity(bodyText)) {
+        const marker = createProfanityMarker(serializeChatNodeSpecs(preservedParts.bodySpecs), {
+          clickable: profanityMode === "mask",
+          block: false,
+          displaySuffixText: preservedParts.suffixSpecs.length ? " " : "",
+          hidden: false,
+        });
+
+        return replaceChatSegmentWithSpecs(container, nodesToReplace, preservedParts.prefixSpecs, marker, preservedParts.suffixSpecs);
+      }
+    }
+  }
+
+  const marker = createProfanityMarker(serializeNodeList(nodesToReplace), {
+    clickable: profanityMode === "mask",
+    block: true,
+    hidden: false,
+  });
+
+  replaceSegmentWithMarker(container, nodesToReplace, marker);
+  return true;
+}
+
+function processChatContainerMessageScope(container) {
+  const snapshot = Array.from(container.childNodes);
+  let segmentStart = 0;
+  let mutated = false;
+
+  for (let index = 0; index <= snapshot.length; index += 1) {
+    const node = snapshot[index];
+    const isBoundary = index === snapshot.length || (node && node.nodeName === "BR");
+
+    if (!isBoundary) {
+      continue;
+    }
+
+    const segmentEnd = index;
+    const hasLeadingBreak = segmentStart > 0 && snapshot[segmentStart - 1]?.nodeName === "BR";
+    const startIndex = hasLeadingBreak ? segmentStart - 1 : segmentStart;
+    const nodesToReplace = snapshot.slice(startIndex, segmentEnd);
+
+    if (nodesToReplace.length && !segmentContainsMarkers(nodesToReplace)) {
+      mutated = processChatSegment(container, nodesToReplace) || mutated;
+    }
+
+    segmentStart = index + 1;
+  }
+
+  return mutated;
+}
+
+function processChatContainerWordScope(container, clickable = true) {
+  const textNodes = [];
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+
+  while (walker.nextNode()) {
+    const textNode = walker.currentNode;
+    if (isProfanitySkipNode(textNode)) {
+      continue;
+    }
+
+    if (containsProfanity(textNode.nodeValue ?? "")) {
+      textNodes.push(textNode);
+    }
+  }
+
+  let mutated = false;
+  textNodes.forEach((textNode) => {
+    mutated = replaceProfanityInTextNode(textNode, clickable) || mutated;
+  });
+
+  return mutated;
+}
+
+function processTooltipContainer(container) {
+  const content = container.textContent ?? "";
+  const isProfane = containsProfanity(content);
+
+  if (!isProfane) {
+    if (container.dataset.tarotProfanityHidden === "true") {
+      const originalDisplay = container.dataset.tarotProfanityOriginalDisplay ?? "";
+
+      if (originalDisplay) {
+        container.style.display = originalDisplay;
+      } else {
+        container.style.removeProperty("display");
+      }
+
+      delete container.dataset.tarotProfanityHidden;
+      delete container.dataset.tarotProfanityOriginalDisplay;
+    }
+
+    return false;
+  }
+
+  if (container.dataset.tarotProfanityHidden === "true") {
+    container.style.display = "none";
+    return true;
+  }
+
+  if (!container.dataset.tarotProfanityOriginalDisplay) {
+    container.dataset.tarotProfanityOriginalDisplay = container.style.display ?? "";
+  }
+
+  container.dataset.tarotProfanityHidden = "true";
+  container.style.display = "none";
+  return true;
+}
+
+function applyProfanityFilter() {
+  const shouldReconnectObserver = Boolean(profanityEnabled && profanityObserver && document.body);
+
+  if (shouldReconnectObserver) {
+    profanityObserver.disconnect();
+  }
+
+  profanityFilterBusy = true;
+
+  try {
+    if (profanityNeedsFullReset) {
+      restoreProfanityMarkers();
+      restoreProfanityRevealWrappers();
+      restoreProfanityHiddenTooltips();
+      profanityNeedsFullReset = false;
+    }
+
+    if (!profanityEnabled) {
+      return;
+    }
+
+    const containers = Array.from(document.querySelectorAll(profanityChatSelector));
+
+    if (!containers.length) {
+      return;
+    }
+
+    containers.forEach((container) => {
+      if (isTooltipContainer(container)) {
+        processTooltipContainer(container);
+        return;
+      }
+
+      if (profanityMode === "delete" || profanityScope === "message") {
+        processChatContainerMessageScope(container);
+      } else {
+        processChatContainerWordScope(container, profanityMode === "mask");
+      }
+    });
+  } finally {
+    profanityFilterBusy = false;
+
+    if (shouldReconnectObserver) {
+      profanityObserver.observe(document.body, profanityObserverOptions);
+    }
+  }
+}
+
+function scheduleProfanityFilter() {
+  if (profanityRefreshQueued || profanityFilterBusy) {
+    return;
+  }
+
+  profanityRefreshQueued = true;
+  requestAnimationFrame(() => {
+    profanityRefreshQueued = false;
+    applyProfanityFilter();
+  });
+}
+
+function ensureProfanityObserver() {
+  if (profanityObserver || !document.body) {
+    return;
+  }
+
+  profanityObserver = new MutationObserver((mutations) => {
+    if (!profanityEnabled || profanityFilterBusy) {
+      return;
+    }
+
+    const mutationsIncludeTooltip = Array.from(mutations ?? []).some((mutation) => {
+      const relatedNodes = [mutation.target, ...Array.from(mutation.addedNodes ?? [])];
+
+      return relatedNodes.some((node) => {
+        if (!(node instanceof Node)) {
+          return false;
+        }
+
+        if (node.nodeType === Node.ELEMENT_NODE) {
+          return node.matches("[role='tooltip']") || node.closest("[role='tooltip']") !== null;
+        }
+
+        return node.parentElement !== null && node.parentElement.closest("[role='tooltip']") !== null;
+      });
+    });
+
+    if (mutationsIncludeTooltip) {
+      applyProfanityFilter();
+      return;
+    }
+
+    scheduleProfanityFilter();
+  });
+
+  profanityObserver.observe(document.body, profanityObserverOptions);
+}
+
+function setProfanityFilterState(enabled, mode, scope) {
+  const nextEnabled = Boolean(enabled);
+  const nextMode = ["mask", "hide", "delete"].includes(mode) ? mode : "mask";
+  const nextScope = ["insult", "message"].includes(scope) ? scope : "insult";
+
+  if (profanityEnabled !== nextEnabled || profanityMode !== nextMode || profanityScope !== nextScope) {
+    profanityNeedsFullReset = true;
+  }
+
+  profanityEnabled = nextEnabled;
+  profanityMode = nextMode;
+  profanityScope = nextScope;
+
+  if (profanityEnabled) {
+    ensureProfanityObserver();
+  }
+
+  applyProfanityFilter();
+
+  if (!profanityEnabled && profanityObserver) {
+    profanityObserver.disconnect();
+    profanityObserver = null;
+  }
+}
+
 const emoticonToolbarSelector = "#chatBg td#chtput";
 const emoticonImageSourceMarker = "MythUp/tarot-plus/refs/heads/";
 
@@ -723,7 +1500,16 @@ const syncForumShareButton = () => {
 };
 
 chrome.storage.local.get(
-  ["enabledExt", "shareForum", "emoticonsEnabled", "unicodeDecodingEnabled", "disabledEmoticons"],
+  [
+    "enabledExt",
+    "shareForum",
+    "emoticonsEnabled",
+    "unicodeDecodingEnabled",
+    "disabledEmoticons",
+    "censureEnabled",
+    "censureMode",
+    "censureScope",
+  ],
   (data) => {
     if (!data.enabledExt) return console.log("[EXT] ❌ Extension désactivée.");
 
@@ -732,6 +1518,12 @@ chrome.storage.local.get(
     injectUnicodeBridge();
 
     shareForumEnabled = data.shareForum ?? true;
+
+    setProfanityFilterState(
+      data.censureEnabled ?? true,
+      data.censureMode ?? "mask",
+      data.censureScope ?? "insult"
+    );
 
     if (data.unicodeDecodingEnabled ?? true) {
       startUnicodeDecoding();
@@ -763,6 +1555,14 @@ chrome.storage.local.get(
       if (changes.shareForum) {
         shareForumEnabled = changes.shareForum.newValue ?? true;
         syncForumShareButton();
+      }
+
+      if (changes.censureEnabled || changes.censureMode || changes.censureScope) {
+        setProfanityFilterState(
+          changes.censureEnabled ? changes.censureEnabled.newValue ?? true : profanityEnabled,
+          changes.censureMode ? changes.censureMode.newValue ?? profanityMode : profanityMode,
+          changes.censureScope ? changes.censureScope.newValue ?? profanityScope : profanityScope
+        );
       }
     });
 

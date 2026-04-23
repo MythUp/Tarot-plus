@@ -1,46 +1,40 @@
 {
-    "manifest_version": 3,
-    "name": "Tarot+",
-    "short_name": "Tarot+",
-    "author": "Alban Muller",
-    "icons": {
+  "manifest_version": 3,
+  "name": "Tarot+",
+  "short_name": "Tarot+",
+  "author": "Alban Muller",
+  "icons": {
+    "16": "icon.png",
+    "48": "icon.png",
+    "128": "icon.png"
+  },
+  "version": "3.5.0",
+  "description": "Ajoute des fonctionnalités à jeu-tarot-en-ligne.com pour améliorer votre expérience de jeu et corriger des bugs.",
+  "permissions": ["activeTab", "storage", "scripting", "tabs"],
+  "host_permissions": ["https://*.jeu-tarot-en-ligne.com/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
       "16": "icon.png",
       "48": "icon.png",
       "128": "icon.png"
-    },
-    "version": "3.4.0",
-    "description": "Ajoute des fonctionnalités à jeu-tarot-en-ligne.com pour améliorer votre expérience de jeu et corriger des bugs.",
-    "permissions": [
-      "activeTab",
-      "storage",
-      "scripting",
-      "tabs"
-    ],
-    "host_permissions": ["https://*.jeu-tarot-en-ligne.com/*"],
-    "background": {
-      "service_worker": "background.js"
-    },
-    "action": {
-      "default_popup": "popup.html",
-      "default_icon": {
-        "16": "icon.png",
-        "48": "icon.png",
-        "128": "icon.png"
-      }
-    },
-    "default_title": "Configuration",
-    "content_scripts": [
-      {
-        "matches": ["https://*.jeu-tarot-en-ligne.com/*"],
-        "js": ["content.js"],
-        "run_at": "document_end"
-      }
-    ],
-    "web_accessible_resources": [
-      {
-          "resources": ["emot.js", "buttonForum.js", "unicodeBridge.js"],
-        "matches": ["https://*.jeu-tarot-en-ligne.com/*"]
-      }
-    ]
-  }
-  
+    }
+  },
+  "default_title": "Configuration",
+  "content_scripts": [
+    {
+      "matches": ["https://*.jeu-tarot-en-ligne.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_end"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["emot.js", "buttonForum.js", "unicodeBridge.js"],
+      "matches": ["https://*.jeu-tarot-en-ligne.com/*"]
+    }
+  ]
+}

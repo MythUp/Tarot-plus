@@ -5,13 +5,29 @@ document.addEventListener("DOMContentLoaded", () => {
     const toggleShareForum = document.getElementById("toggleShareForum");
     const toggleEmoticons = document.getElementById("toggleEmoticons");
     const toggleUnicodeDecoding = document.getElementById("toggleUnicodeDecoding");
+    const toggleCensure = document.getElementById("toggleCensure");
+    const censureModeInputs = Array.from(document.querySelectorAll("input[name='censureMode']"));
+    const censureScopeInputs = Array.from(document.querySelectorAll("input[name='censureScope']"));
     const openSiteContainer = document.querySelector(".openSiteButton");
 
-    chrome.storage.local.get(["enabledExt", "shareForum", "emoticonsEnabled", "unicodeDecodingEnabled", "disabledEmoticons"], (data) => {
+    chrome.storage.local.get([
+        "enabledExt",
+        "shareForum",
+        "emoticonsEnabled",
+        "unicodeDecodingEnabled",
+        "disabledEmoticons",
+        "censureEnabled",
+        "censureMode",
+        "censureScope",
+    ], (data) => {
         if (toggleExtension) toggleExtension.checked = data.enabledExt ?? true;
         if (toggleShareForum) toggleShareForum.checked = data.shareForum ?? true;
         if (toggleEmoticons) toggleEmoticons.checked = data.emoticonsEnabled ?? true;
         if (toggleUnicodeDecoding) toggleUnicodeDecoding.checked = data.unicodeDecodingEnabled ?? true;
+        if (toggleCensure) toggleCensure.checked = data.censureEnabled ?? true;
+        setRadioValue(censureModeInputs, data.censureMode ?? "mask");
+        setRadioValue(censureScopeInputs, data.censureScope ?? "insult");
+        syncCensureUiState();
         const disabledEmoticons = data.disabledEmoticons ?? {};
         loadEmoticons(disabledEmoticons);
     });
@@ -78,6 +94,28 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
+    if (toggleCensure) {
+        toggleCensure.addEventListener("change", () => {
+            ensureAndSet("censureEnabled", toggleCensure.checked, false);
+            syncCensureUiState();
+        });
+    }
+
+    censureModeInputs.forEach((input) => {
+        input.addEventListener("change", () => {
+            if (!input.checked) return;
+            ensureAndSet("censureMode", input.value, false);
+            syncCensureUiState();
+        });
+    });
+
+    censureScopeInputs.forEach((input) => {
+        input.addEventListener("change", () => {
+            if (!input.checked) return;
+            ensureAndSet("censureScope", input.value, false);
+        });
+    });
+
     const manifestData = chrome.runtime.getManifest();
     const versionElement = document.getElementById("version");
     if (versionElement) {
@@ -92,7 +130,32 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     initReloadButtons();
+
+    function syncCensureUiState() {
+        const selectedMode = getSelectedRadioValue(censureModeInputs) ?? "mask";
+        const disableScope = selectedMode === "delete";
+
+        censureScopeInputs.forEach((input) => {
+            input.disabled = disableScope;
+        });
+
+        const panel = document.getElementById("censureOptions");
+        if (panel) {
+            panel.classList.toggle("opacity-50", !toggleCensure?.checked);
+        }
+    }
 });
+
+function setRadioValue(inputs, value) {
+    inputs.forEach((input) => {
+        input.checked = input.value === value;
+    });
+}
+
+function getSelectedRadioValue(inputs) {
+    const selected = inputs.find((input) => input.checked);
+    return selected ? selected.value : null;
+}
 
 // Charger les émoticônes et les afficher
 function loadEmoticons(disabledEmoticons) {
