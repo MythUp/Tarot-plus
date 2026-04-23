@@ -127,7 +127,8 @@ function isUnicodeTextControl(element) {
 }
 
 const profanityPlaceholderText = "** Censure **";
-const profanityChatSelector = "#chat, [role='tooltip']";
+const profanityChatSelector = "#chat, [role='tooltip'], #mechacnt, p.chatRecap";
+const profanityRecapSelector = "#chatCnt, #mechacnt, .chatRecap";
 const profanityRevealSelector = "[data-tarot-profanity-revealed='true']";
 const profanityMarkerSelector = "[data-tarot-profanity-original-html]";
 const profanityTooltipHiddenSelector = "[role='tooltip'][data-tarot-profanity-hidden='true']";
@@ -139,11 +140,25 @@ let profanityMode = "mask";
 let profanityScope = "insult";
 let profanityObserver = null;
 let profanityRefreshQueued = false;
+let profanityRefreshPending = false;
 let profanityFilterBusy = false;
 let profanityNeedsFullReset = true;
 let profanityEntries = [];
+let profanityWhitelist = new Set();
+let profanityEntriesByCandidateLength = new Map();
+let profanityCandidateLengths = [];
+let profanityMinCandidateLength = 0;
+let profanityMaxCandidateLength = 0;
 let profanityTermsLoadToken = 0;
+let profanityRecapObserver = null;
 const profanityObserverOptions = {
+  childList: true,
+  characterData: true,
+  subtree: true,
+};
+const profanityRecapObserverOptions = {
+  attributes: true,
+  attributeFilter: ["class", "id"],
   childList: true,
   characterData: true,
   subtree: true,
@@ -154,16 +169,57 @@ function normalizeProfanityText(value) {
   return typeof value === "string" ? value.toLocaleLowerCase("fr-FR") : "";
 }
 
-function extractProfanityTerms(payload) {
+function normalizeProfanityKey(value) {
+  if (typeof value !== "string" || !value) {
+    return "";
+  }
+
+  return value
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toLocaleLowerCase("fr-FR")
+    .replace(/[^\p{L}\p{N}]+/gu, "");
+}
+
+function splitProfanitySearchTokens(value) {
+  if (typeof value !== "string" || !value) {
+    return [];
+  }
+
+  const tokens = [];
+
+  for (const match of value.matchAll(/\S+/gu)) {
+    const rawToken = match[0];
+    const normalizedToken = normalizeProfanityKey(rawToken);
+
+    if (!normalizedToken) {
+      continue;
+    }
+
+    tokens.push({
+      end: match.index + rawToken.length,
+      hasSymbols: /[^\p{L}\p{N}]/u.test(rawToken),
+      normalized: normalizedToken,
+      start: match.index,
+    });
+  }
+
+  return tokens;
+}
+
+function extractProfanityConfig(payload) {
   if (Array.isArray(payload)) {
-    return payload;
+    return { terms: payload, whitelist: [] };
   }
 
-  if (payload && Array.isArray(payload.terms)) {
-    return payload.terms;
+  if (payload && typeof payload === "object") {
+    return {
+      terms: Array.isArray(payload.terms) ? payload.terms : [],
+      whitelist: Array.isArray(payload.whitelist) ? payload.whitelist : [],
+    };
   }
 
-  return [];
+  return { terms: [], whitelist: [] };
 }
 
 function normalizeProfanityTermList(terms) {
@@ -177,7 +233,7 @@ function normalizeProfanityTermList(terms) {
       continue;
     }
 
-    const normalizedKey = normalizeProfanityText(cleanedTerm);
+    const normalizedKey = normalizeProfanityKey(cleanedTerm);
 
     if (seenTerms.has(normalizedKey)) {
       continue;
@@ -191,14 +247,55 @@ function normalizeProfanityTermList(terms) {
 }
 
 function buildProfanityEntries(terms) {
-  return normalizeProfanityTermList(terms).map((term) => {
-    const normalizedTerm = normalizeProfanityText(term);
+  const entries = [];
+  const entriesByCandidateLength = new Map();
+  const candidateLengths = new Set();
+  let minCandidateLength = Number.POSITIVE_INFINITY;
+  let maxCandidateLength = 0;
 
-    return {
+  for (const term of normalizeProfanityTermList(terms)) {
+    const normalizedTokens = term
+      .split(/\s+/u)
+      .map((token) => normalizeProfanityKey(token))
+      .filter(Boolean);
+
+    const normalizedTerm = normalizedTokens.join("");
+    const tokenCount = normalizedTokens.length;
+
+    if (!tokenCount) {
+      continue;
+    }
+
+    const tolerance = normalizedTerm.length <= 3 ? 0 : 1;
+    const entry = {
       normalized: normalizedTerm,
-      tolerance: normalizedTerm.length <= 5 ? 1 : 2,
+      tokenCount,
+      tolerance,
     };
-  });
+
+    entries.push(entry);
+
+    minCandidateLength = Math.min(minCandidateLength, tokenCount);
+    maxCandidateLength = Math.max(maxCandidateLength, tokenCount);
+
+    const currentEntries = entriesByCandidateLength.get(tokenCount);
+
+    if (currentEntries) {
+      currentEntries.push(entry);
+    } else {
+      entriesByCandidateLength.set(tokenCount, [entry]);
+    }
+
+    candidateLengths.add(tokenCount);
+  }
+
+  return {
+    entries,
+    entriesByCandidateLength,
+    candidateLengths: Array.from(candidateLengths).sort((left, right) => left - right),
+    maxCandidateLength,
+    minCandidateLength: Number.isFinite(minCandidateLength) ? minCandidateLength : 0,
+  };
 }
 
 async function readProfanityTermsFromJson() {
@@ -209,14 +306,14 @@ async function readProfanityTermsFromJson() {
   }
 
   const payload = await response.json();
-  return extractProfanityTerms(payload);
+  return extractProfanityConfig(payload);
 }
 
 async function loadProfanityTerms() {
   const loadToken = ++profanityTermsLoadToken;
 
   try {
-    const [defaultTerms, storage] = await Promise.all([
+    const [defaultConfig, storage] = await Promise.all([
       readProfanityTermsFromJson(),
       new Promise((resolve) => chrome.storage.local.get(["profanityTermsCustom"], resolve)),
     ]);
@@ -225,16 +322,32 @@ async function loadProfanityTerms() {
       return profanityEntries;
     }
 
-    const effectiveTerms = Array.isArray(storage.profanityTermsCustom)
+    const customTerms = Array.isArray(storage.profanityTermsCustom)
       ? storage.profanityTermsCustom
-      : defaultTerms;
+      : [];
 
-    profanityEntries = buildProfanityEntries(effectiveTerms);
+    const effectiveTerms = normalizeProfanityTermList([
+      ...defaultConfig.terms,
+      ...customTerms,
+    ]);
+
+    const builtEntries = buildProfanityEntries(effectiveTerms);
+    profanityEntries = builtEntries.entries;
+    profanityEntriesByCandidateLength = builtEntries.entriesByCandidateLength;
+    profanityCandidateLengths = builtEntries.candidateLengths;
+    profanityMinCandidateLength = builtEntries.minCandidateLength;
+    profanityMaxCandidateLength = builtEntries.maxCandidateLength;
+    profanityWhitelist = new Set(normalizeProfanityTermList(defaultConfig.whitelist).map(normalizeProfanityKey));
     return profanityEntries;
   } catch (error) {
     console.error("[EXT] Impossible de charger la liste d'insultes.", error);
     if (loadToken === profanityTermsLoadToken) {
       profanityEntries = [];
+      profanityWhitelist = new Set();
+      profanityEntriesByCandidateLength = new Map();
+      profanityCandidateLengths = [];
+      profanityMinCandidateLength = 0;
+      profanityMaxCandidateLength = 0;
     }
 
     return profanityEntries;
@@ -305,44 +418,46 @@ function mergeProfanityMatchSpans(spans) {
 }
 
 function getProfanityMatchSpans(value) {
-  if (typeof value !== "string" || !value.trim()) {
+  if (typeof value !== "string" || !value.trim() || !profanityEntries.length) {
     return [];
   }
 
-  const normalizedValue = normalizeProfanityText(value);
+  const tokens = splitProfanitySearchTokens(value);
   const spans = [];
 
-  for (const term of profanityEntries) {
-    const normalizedTerm = term.normalized;
-    const tolerance = term.tolerance;
-    const termLength = normalizedTerm.length;
-    const minLength = Math.max(1, termLength - tolerance);
-    const maxLength = termLength + tolerance;
+  for (let startIndex = 0; startIndex < tokens.length; startIndex += 1) {
+    if (profanityMinCandidateLength && startIndex + profanityMinCandidateLength > tokens.length) {
+      break;
+    }
 
-    for (let startIndex = 0; startIndex < normalizedValue.length; startIndex += 1) {
-      if (startIndex > 0 && isProfanityWordCharacter(normalizedValue[startIndex - 1])) {
+    for (const length of profanityCandidateLengths) {
+      if (startIndex + length > tokens.length) {
+        break;
+      }
+
+      const candidateEntries = profanityEntriesByCandidateLength.get(length);
+
+      if (!candidateEntries || !candidateEntries.length) {
         continue;
       }
 
-      if (/\s/u.test(normalizedValue[startIndex] ?? "")) {
+      const endIndex = startIndex + length;
+      const candidateTokens = tokens.slice(startIndex, endIndex);
+      const candidate = candidateTokens.map((token) => token.normalized).join("");
+      const candidateHasSymbols = candidateTokens.some((token) => token.hasSymbols);
+
+      if (!candidate || profanityWhitelist.has(candidate)) {
         continue;
       }
 
-      for (let length = minLength; length <= maxLength && startIndex + length <= normalizedValue.length; length += 1) {
-        const endIndex = startIndex + length;
+      for (const term of candidateEntries) {
+        const allowedDistance = candidate === term.normalized ? 0 : candidateHasSymbols ? term.tolerance : 0;
 
-        if (endIndex < normalizedValue.length && isProfanityWordCharacter(normalizedValue[endIndex])) {
-          continue;
-        }
-
-        const candidate = normalizedValue.slice(startIndex, endIndex);
-
-        if (/\s/u.test(candidate)) {
-          continue;
-        }
-
-        if (levenshteinWithinLimit(normalizedTerm, candidate, tolerance)) {
-          spans.push({ end: endIndex, start: startIndex });
+        if (levenshteinWithinLimit(term.normalized, candidate, allowedDistance)) {
+          spans.push({
+            end: candidateTokens[candidateTokens.length - 1].end,
+            start: candidateTokens[0].start,
+          });
           break;
         }
       }
@@ -839,12 +954,6 @@ function processTooltipContainer(container) {
 }
 
 function applyProfanityFilter() {
-  const shouldReconnectObserver = Boolean(profanityEnabled && profanityObserver && document.body);
-
-  if (shouldReconnectObserver) {
-    profanityObserver.disconnect();
-  }
-
   profanityFilterBusy = true;
 
   try {
@@ -880,8 +989,9 @@ function applyProfanityFilter() {
   } finally {
     profanityFilterBusy = false;
 
-    if (shouldReconnectObserver) {
-      profanityObserver.observe(document.body, profanityObserverOptions);
+    if (profanityEnabled && profanityRefreshPending) {
+      profanityRefreshPending = false;
+      scheduleProfanityFilter();
     }
   }
 }
@@ -898,13 +1008,74 @@ function scheduleProfanityFilter() {
   });
 }
 
+function isProfanityRecapElement(element) {
+  return element instanceof Element
+    && (element.id === "chatCnt" || element.id === "mechacnt" || element.classList.contains("chatRecap"));
+}
+
+function mutationTouchesProfanityRecap(mutations) {
+  return Array.from(mutations ?? []).some((mutation) => {
+    const relatedNodes = [mutation.target, ...Array.from(mutation.addedNodes ?? []), ...Array.from(mutation.removedNodes ?? [])];
+
+    return relatedNodes.some((node) => {
+      if (!(node instanceof Node)) {
+        return false;
+      }
+
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        if (isProfanityRecapElement(node)) {
+          return true;
+        }
+
+        return node.querySelector(profanityRecapSelector) !== null;
+      }
+
+      return node.parentElement !== null
+        && (isProfanityRecapElement(node.parentElement)
+          || node.parentElement.closest(profanityRecapSelector) !== null);
+    });
+  });
+}
+
+function ensureProfanityRecapObserver() {
+  const observerTarget = document.documentElement || document.body;
+
+  if (profanityRecapObserver || !observerTarget) {
+    return;
+  }
+
+  profanityRecapObserver = new MutationObserver((mutations) => {
+    if (!profanityEnabled) {
+      return;
+    }
+
+    if (profanityFilterBusy) {
+      profanityRefreshPending = true;
+      return;
+    }
+
+    if (mutationTouchesProfanityRecap(mutations)) {
+      scheduleProfanityFilter();
+    }
+  });
+
+  profanityRecapObserver.observe(observerTarget, profanityRecapObserverOptions);
+}
+
 function ensureProfanityObserver() {
-  if (profanityObserver || !document.body) {
+  const observerTarget = document.documentElement || document.body;
+
+  if (profanityObserver || !observerTarget) {
     return;
   }
 
   profanityObserver = new MutationObserver((mutations) => {
-    if (!profanityEnabled || profanityFilterBusy) {
+    if (!profanityEnabled) {
+      return;
+    }
+
+    if (profanityFilterBusy) {
+      profanityRefreshPending = true;
       return;
     }
 
@@ -932,7 +1103,7 @@ function ensureProfanityObserver() {
     scheduleProfanityFilter();
   });
 
-  profanityObserver.observe(document.body, profanityObserverOptions);
+  profanityObserver.observe(observerTarget, profanityObserverOptions);
 }
 
 function setProfanityFilterState(enabled, mode, scope) {
@@ -948,8 +1119,13 @@ function setProfanityFilterState(enabled, mode, scope) {
   profanityMode = nextMode;
   profanityScope = nextScope;
 
+  if (!profanityEnabled) {
+    profanityRefreshPending = false;
+  }
+
   if (profanityEnabled) {
     ensureProfanityObserver();
+    ensureProfanityRecapObserver();
   }
 
   applyProfanityFilter();
@@ -957,6 +1133,11 @@ function setProfanityFilterState(enabled, mode, scope) {
   if (!profanityEnabled && profanityObserver) {
     profanityObserver.disconnect();
     profanityObserver = null;
+  }
+
+  if (!profanityEnabled && profanityRecapObserver) {
+    profanityRecapObserver.disconnect();
+    profanityRecapObserver = null;
   }
 }
 
@@ -1573,6 +1754,7 @@ chrome.storage.local.get(
     console.log("[EXT] ✅ Extension activée.");
 
     injectUnicodeBridge();
+    ensureProfanityRecapObserver();
 
     shareForumEnabled = data.shareForum ?? true;
 

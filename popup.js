@@ -13,6 +13,76 @@ let profanityWarningConfirmButtonElement = null;
 let profanityListSaveButtonElement = null;
 let profanityListResetButtonElement = null;
 
+function isPopupModalOpen() {
+    return document.querySelector(".popup-modal.show") !== null;
+}
+
+function getPopupModalScrollableTarget(target) {
+    if (!(target instanceof Element)) {
+        return null;
+    }
+
+    return target.closest(".popup-modal.show .modal-body, .popup-modal.show .profanity-list-textarea");
+}
+
+function canElementScroll(element, deltaY) {
+    if (!(element instanceof Element)) {
+        return false;
+    }
+
+    const overflowY = window.getComputedStyle(element).overflowY;
+    const isScrollable = /^(auto|scroll|overlay)$/u.test(overflowY) && element.scrollHeight > element.clientHeight;
+
+    if (!isScrollable) {
+        return false;
+    }
+
+    if (deltaY > 0) {
+        return element.scrollTop + element.clientHeight < element.scrollHeight - 1;
+    }
+
+    if (deltaY < 0) {
+        return element.scrollTop > 0;
+    }
+
+    return false;
+}
+
+function handlePopupWheel(event) {
+    if (!isPopupModalOpen()) {
+        return;
+    }
+
+    const scrollableTarget = getPopupModalScrollableTarget(event.target);
+
+    if (scrollableTarget && canElementScroll(scrollableTarget, event.deltaY)) {
+        return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+}
+
+function syncPopupScrollLock() {
+    const isModalOpen = document.querySelector(".popup-modal.show") !== null;
+    document.documentElement.classList.toggle("popup-modal-open", isModalOpen);
+    document.body.classList.toggle("popup-modal-open", isModalOpen);
+}
+
+function bindPopupScrollTrap() {
+    document.addEventListener("wheel", handlePopupWheel, { capture: true, passive: false });
+}
+
+function bindPopupModalScrollLock(modalElement) {
+    if (!modalElement) {
+        return;
+    }
+
+    modalElement.addEventListener("show.bs.modal", syncPopupScrollLock);
+    modalElement.addEventListener("shown.bs.modal", syncPopupScrollLock);
+    modalElement.addEventListener("hidden.bs.modal", syncPopupScrollLock);
+}
+
 document.addEventListener("DOMContentLoaded", () => {
     const toggleExtension = document.getElementById("toggleExtension");
     const toggleShareForum = document.getElementById("toggleShareForum");
@@ -38,6 +108,11 @@ document.addEventListener("DOMContentLoaded", () => {
     if (profanityListModalElement) {
         profanityListModalInstance = new bootstrap.Modal(profanityListModalElement);
     }
+
+    bindPopupModalScrollLock(profanityWarningModalElement);
+    bindPopupModalScrollLock(profanityListModalElement);
+    bindPopupScrollTrap();
+    syncPopupScrollLock();
 
     if (profanityManageButtonElement) {
         profanityManageButtonElement.addEventListener("click", () => {
@@ -301,9 +376,14 @@ async function loadEffectiveProfanityTerms() {
         getStorageValue(["profanityTermsCustom"]),
     ]);
 
-    return Array.isArray(storage.profanityTermsCustom)
-        ? normalizeProfanityList(storage.profanityTermsCustom)
-        : defaultTerms;
+    const customTerms = Array.isArray(storage.profanityTermsCustom)
+        ? storage.profanityTermsCustom
+        : [];
+
+    return normalizeProfanityList([
+        ...defaultTerms,
+        ...customTerms,
+    ]);
 }
 
 function formatProfanityList(terms) {

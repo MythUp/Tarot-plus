@@ -33,7 +33,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["emot.js", "buttonForum.js", "unicodeBridge.js"],
+      "resources": ["emot.js", "buttonForum.js", "unicodeBridge.js", "profanity-terms.json"],
       "matches": ["https://*.jeu-tarot-en-ligne.com/*"]
     }
   ]

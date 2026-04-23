@@ -163,6 +163,22 @@ hr {
   font-size: 0.85rem;
 }
 
+html.popup-modal-open,
+body.popup-modal-open,
+body.modal-open {
+  overflow: hidden !important;
+  overscroll-behavior: none;
+  -ms-overflow-style: none;
+}
+
+html.popup-modal-open::-webkit-scrollbar,
+body.popup-modal-open::-webkit-scrollbar,
+body.modal-open::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+body.popup-modal-open,
 body.modal-open {
   padding-right: 0 !important;
 }
