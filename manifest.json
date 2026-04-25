@@ -8,7 +8,7 @@
     "48": "icon.png",
     "128": "icon.png"
   },
-  "version": "3.5.0",
+  "version": "4.0.0",
   "description": "Ajoute des fonctionnalités à jeu-tarot-en-ligne.com pour améliorer votre expérience de jeu et corriger des bugs.",
   "permissions": ["activeTab", "storage", "scripting", "tabs"],
   "host_permissions": ["https://*.jeu-tarot-en-ligne.com/*"],
