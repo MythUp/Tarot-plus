@@ -207,6 +207,16 @@ function splitProfanitySearchTokens(value) {
   return tokens;
 }
 
+function getProfanityChatSelector() {
+  const selectors = [profanityChatSelector];
+
+  if (location.pathname.startsWith("/forum-sujet/")) {
+    selectors.push("div.sujetForum");
+  }
+
+  return selectors.join(", ");
+}
+
 function extractProfanityConfig(payload) {
   if (Array.isArray(payload)) {
     return { terms: payload, whitelist: [] };
@@ -266,7 +276,7 @@ function buildProfanityEntries(terms) {
       continue;
     }
 
-    const tolerance = normalizedTerm.length <= 3 ? 0 : 1;
+    const tolerance = 1;
     const entry = {
       normalized: normalizedTerm,
       tokenCount,
@@ -508,16 +518,28 @@ function isProfanityMarkerElement(element) {
   return element instanceof Element && element.matches(profanityMarkerSelector);
 }
 
-function createProfanityMarker(originalHtml, { clickable, block, hidden, displaySuffixText = "" }) {
+function createProfanityMarker(originalHtml, { clickable, block, hidden, displaySuffixText = "", preserveContents = false, blockWrapperTagName = null }) {
   const marker = document.createElement("span");
   marker.dataset.tarotProfanityOriginalHtml = originalHtml;
   marker.dataset.tarotProfanityBlock = block ? "true" : "false";
-  marker.textContent = hidden ? "" : `${profanityPlaceholderText}${displaySuffixText}`;
+  if (preserveContents) {
+    marker.dataset.tarotProfanityPreserveContents = "true";
+  }
 
   if (hidden) {
+    marker.textContent = "";
     marker.style.display = "none";
+  } else if (block && blockWrapperTagName) {
+    const placeholder = document.createElement(blockWrapperTagName);
+    placeholder.textContent = `${profanityPlaceholderText}${displaySuffixText}`;
+    marker.replaceChildren(placeholder);
+    marker.style.display = "block";
+  } else if (block) {
+    marker.textContent = `${profanityPlaceholderText}${displaySuffixText}`;
+    marker.style.display = "block";
   } else {
-    marker.style.display = block ? "block" : "inline";
+    marker.textContent = `${profanityPlaceholderText}${displaySuffixText}`;
+    marker.style.display = "inline";
   }
 
   if (clickable && !hidden) {
@@ -553,9 +575,32 @@ function createProfanityRevealWrapper(originalHtml, block) {
   const wrapper = document.createElement("span");
   wrapper.dataset.tarotProfanityRevealed = "true";
   wrapper.className = "tarot-profanity-revealed";
-  wrapper.style.display = block ? "block" : "inline";
+  wrapper.style.display = "contents";
   wrapper.innerHTML = originalHtml;
   return wrapper;
+}
+
+function replaceElementContentsWithMarker(element, marker) {
+  if (!(element instanceof Element)) {
+    return false;
+  }
+
+  element.replaceChildren(marker);
+  return true;
+}
+
+function findSingleMeaningfulChildElement(element) {
+  if (!(element instanceof Element)) {
+    return null;
+  }
+
+  for (const child of element.children) {
+    if (containsProfanity(child.textContent ?? "")) {
+      return child;
+    }
+  }
+
+  return element;
 }
 
 function revealProfanityMarker(marker) {
@@ -564,6 +609,14 @@ function revealProfanityMarker(marker) {
   }
 
   const originalHtml = marker.dataset.tarotProfanityOriginalHtml ?? "";
+  const preserveContents = marker.dataset.tarotProfanityPreserveContents === "true";
+
+  if (preserveContents) {
+    marker.insertAdjacentHTML("beforebegin", originalHtml);
+    marker.remove();
+    return;
+  }
+
   const block = marker.dataset.tarotProfanityBlock === "true";
   const revealWrapper = createProfanityRevealWrapper(originalHtml, block);
   marker.replaceWith(revealWrapper);
@@ -575,6 +628,13 @@ function restoreProfanityMarker(marker) {
   }
 
   const originalHtml = marker.dataset.tarotProfanityOriginalHtml ?? "";
+
+  if (marker.dataset.tarotProfanityPreserveContents === "true") {
+    marker.insertAdjacentHTML("beforebegin", originalHtml);
+    marker.remove();
+    return;
+  }
+
   marker.insertAdjacentHTML("beforebegin", originalHtml);
   marker.remove();
 }
@@ -855,11 +915,29 @@ function processChatSegment(container, nodesToReplace) {
         return replaceChatSegmentWithSpecs(container, nodesToReplace, preservedParts.prefixSpecs, marker, preservedParts.suffixSpecs);
       }
     }
+
+    if (nodesToReplace.length === 1 && nodesToReplace[0] instanceof Element) {
+      const messageWrapperElement = findSingleMeaningfulChildElement(nodesToReplace[0]);
+
+      if (!messageWrapperElement) {
+        return false;
+      }
+
+      const marker = createProfanityMarker(messageWrapperElement.innerHTML, {
+        clickable: profanityMode === "mask",
+        block: false,
+        hidden: false,
+        preserveContents: true,
+      });
+
+      return replaceElementContentsWithMarker(messageWrapperElement, marker);
+    }
   }
 
   const marker = createProfanityMarker(serializeNodeList(nodesToReplace), {
     clickable: profanityMode === "mask",
     block: true,
+    blockWrapperTagName: nodesToReplace.some((node) => node.nodeType === Node.ELEMENT_NODE && node.tagName === "P") ? "p" : null,
     hidden: false,
   });
 
@@ -968,7 +1046,7 @@ function applyProfanityFilter() {
       return;
     }
 
-    const containers = Array.from(document.querySelectorAll(profanityChatSelector));
+    const containers = Array.from(document.querySelectorAll(getProfanityChatSelector()));
 
     if (!containers.length) {
       return;
