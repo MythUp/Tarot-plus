@@ -128,6 +128,7 @@ function isUnicodeTextControl(element) {
 
 const profanityPlaceholderText = "** Censure **";
 const profanityChatSelector = "#chat, [role='tooltip'], #mechacnt, p.chatRecap";
+const profanityPrivateMessageSelector = ".ui-dialog form.feedback_form";
 const profanityRecapSelector = "#chatCnt, #mechacnt, .chatRecap";
 const profanityRevealSelector = "[data-tarot-profanity-revealed='true']";
 const profanityMarkerSelector = "[data-tarot-profanity-original-html]";
@@ -215,6 +216,53 @@ function getProfanityChatSelector() {
   }
 
   return selectors.join(", ");
+}
+
+function getPrivateMessageBodyNodes(form) {
+  if (!(form instanceof Element)) {
+    return [];
+  }
+
+  const nodes = Array.from(form.childNodes);
+  const firstBreakIndex = nodes.findIndex((node) => node.nodeType === Node.ELEMENT_NODE && node.tagName === "BR");
+
+  if (firstBreakIndex === -1) {
+    return [];
+  }
+
+  const bodyNodes = [];
+
+  for (let index = firstBreakIndex + 1; index < nodes.length; index += 1) {
+    const node = nodes[index];
+
+    if (node.nodeType === Node.ELEMENT_NODE && ["TEXTAREA", "INPUT", "BUTTON", "SELECT"].includes(node.tagName)) {
+      break;
+    }
+
+    bodyNodes.push(node);
+  }
+
+  return bodyNodes;
+}
+
+function getPrivateMessageBodyText(form) {
+  return getNodeListText(getPrivateMessageBodyNodes(form));
+}
+
+function isPrivateMessageForm(container) {
+  return container instanceof Element && container.matches(profanityPrivateMessageSelector);
+}
+
+function closePrivateMessageDialog(form) {
+  const dialog = form instanceof Element ? form.closest(".ui-dialog") : null;
+  const closeButton = dialog?.querySelector(".ui-dialog-titlebar-close");
+
+  if (closeButton instanceof HTMLElement) {
+    closeButton.click();
+    return true;
+  }
+
+  return false;
 }
 
 function extractProfanityConfig(payload) {
@@ -658,20 +706,9 @@ function restoreProfanityRevealWrappers(root = document) {
 }
 
 function restoreProfanityHiddenTooltips(root = document) {
-  const tooltips = Array.from(root.querySelectorAll(profanityTooltipHiddenSelector));
+  const hiddenElements = Array.from(root.querySelectorAll("[data-tarot-profanity-hidden='true']"));
 
-  tooltips.forEach((tooltip) => {
-    const originalDisplay = tooltip.dataset.tarotProfanityOriginalDisplay ?? "";
-
-    if (originalDisplay) {
-      tooltip.style.display = originalDisplay;
-    } else {
-      tooltip.style.removeProperty("display");
-    }
-
-    delete tooltip.dataset.tarotProfanityHidden;
-    delete tooltip.dataset.tarotProfanityOriginalDisplay;
-  });
+  hiddenElements.forEach((element) => restoreHiddenProfanityContainer(element));
 }
 
 function isProfanitySkipNode(node) {
@@ -996,22 +1033,40 @@ function processChatContainerWordScope(container, clickable = true) {
   return mutated;
 }
 
+function restoreHiddenProfanityContainer(container) {
+  const originalDisplay = container.dataset.tarotProfanityOriginalDisplay ?? "";
+
+  if (originalDisplay && originalDisplay !== "none") {
+    container.style.display = originalDisplay;
+  } else {
+    container.style.removeProperty("display");
+  }
+
+  delete container.dataset.tarotProfanityHidden;
+  delete container.dataset.tarotProfanityOriginalDisplay;
+}
+
+function hideProfanityContainer(container) {
+  if (container.dataset.tarotProfanityHidden === "true") {
+    container.style.display = "none";
+    return;
+  }
+
+  if (!container.hasAttribute("data-tarot-profanity-original-display")) {
+    container.dataset.tarotProfanityOriginalDisplay = container.style.display ?? "";
+  }
+
+  container.dataset.tarotProfanityHidden = "true";
+  container.style.display = "none";
+}
+
 function processTooltipContainer(container) {
   const content = container.textContent ?? "";
   const isProfane = containsProfanity(content);
 
   if (!isProfane) {
     if (container.dataset.tarotProfanityHidden === "true") {
-      const originalDisplay = container.dataset.tarotProfanityOriginalDisplay ?? "";
-
-      if (originalDisplay) {
-        container.style.display = originalDisplay;
-      } else {
-        container.style.removeProperty("display");
-      }
-
-      delete container.dataset.tarotProfanityHidden;
-      delete container.dataset.tarotProfanityOriginalDisplay;
+      restoreHiddenProfanityContainer(container);
     }
 
     return false;
@@ -1022,13 +1077,81 @@ function processTooltipContainer(container) {
     return true;
   }
 
-  if (!container.dataset.tarotProfanityOriginalDisplay) {
-    container.dataset.tarotProfanityOriginalDisplay = container.style.display ?? "";
+  hideProfanityContainer(container);
+  return true;
+}
+
+function isCompteConversationTooltip(container) {
+  return location.pathname.startsWith("/Compte.php")
+    && container instanceof Element
+    && container.matches("[role='tooltip']")
+    && container.closest(".messageBox") !== null
+    && container.querySelector(".ui-tooltip-content") !== null;
+}
+
+function getCompteConversationCard(container) {
+  const conversationBox = container instanceof Element ? container.closest(".iconbox_wrapper.messageBox") : null;
+
+  return conversationBox?.parentElement ?? null;
+}
+
+function processCompteConversationTooltip(container) {
+  const messageContent = container.querySelector(".ui-tooltip-content");
+
+  if (!(messageContent instanceof Element)) {
+    return false;
   }
 
-  container.dataset.tarotProfanityHidden = "true";
-  container.style.display = "none";
-  return true;
+  const messageText = messageContent.textContent ?? "";
+
+  if (!containsProfanity(messageText)) {
+    if (container.dataset.tarotProfanityHidden === "true") {
+      restoreHiddenProfanityContainer(container);
+    }
+
+    const conversationCard = getCompteConversationCard(container);
+
+    if (conversationCard instanceof Element && conversationCard.dataset.tarotProfanityHidden === "true") {
+      restoreHiddenProfanityContainer(conversationCard);
+    }
+
+    return false;
+  }
+
+  if (profanityMode === "delete") {
+    hideProfanityContainer(container);
+
+    const conversationCard = getCompteConversationCard(container);
+
+    if (conversationCard instanceof Element) {
+      const tooltips = Array.from(conversationCard.querySelectorAll("[role='tooltip']"));
+      const allTooltipsHidden = tooltips.length > 0 && tooltips.every((tooltip) => tooltip.dataset.tarotProfanityHidden === "true");
+
+      if (allTooltipsHidden) {
+        hideProfanityContainer(conversationCard);
+      } else if (conversationCard.dataset.tarotProfanityHidden === "true") {
+        restoreHiddenProfanityContainer(conversationCard);
+      }
+    }
+
+    return true;
+  }
+
+  if (container.dataset.tarotProfanityHidden === "true") {
+    restoreHiddenProfanityContainer(container);
+  }
+
+  const conversationCard = getCompteConversationCard(container);
+
+  if (conversationCard instanceof Element && conversationCard.dataset.tarotProfanityHidden === "true") {
+    restoreHiddenProfanityContainer(conversationCard);
+  }
+
+  if (profanityScope === "message") {
+    return processChatContainerMessageScope(messageContent);
+  }
+
+  return processChatContainerWordScope(messageContent, profanityMode === "mask");
 }
 
 function applyProfanityFilter() {
@@ -1047,12 +1170,35 @@ function applyProfanityFilter() {
     }
 
     const containers = Array.from(document.querySelectorAll(getProfanityChatSelector()));
+    const privateMessageForms = Array.from(document.querySelectorAll(profanityPrivateMessageSelector));
+    const targets = [...containers, ...privateMessageForms];
 
-    if (!containers.length) {
+    if (!targets.length) {
       return;
     }
 
-    containers.forEach((container) => {
+    targets.forEach((container) => {
+      if (isCompteConversationTooltip(container)) {
+        processCompteConversationTooltip(container);
+        return;
+      }
+
+      if (isPrivateMessageForm(container)) {
+        const bodyText = getPrivateMessageBodyText(container);
+
+        if (profanityMode === "delete" || profanityScope === "message") {
+          processChatContainerMessageScope(container);
+        } else {
+          processChatContainerWordScope(container, profanityMode === "mask");
+        }
+
+        if (profanityMode === "delete" && containsProfanity(bodyText)) {
+          closePrivateMessageDialog(container);
+        }
+
+        return;
+      }
+
       if (isTooltipContainer(container)) {
         processTooltipContainer(container);
         return;
