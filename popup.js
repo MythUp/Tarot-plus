@@ -514,6 +514,7 @@ function createEmoticon(id, src, disabledEmoticons) {
     imgElement.src = src;
     imgElement.width = 32;
     imgElement.height = 32;
+    imgElement.draggable = false;
     imgElement.classList.add("img-thumbnail", "p-1");
     imgElement.dataset.id = id;
     imgElement.style.cursor = "pointer";
