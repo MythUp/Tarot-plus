@@ -258,6 +258,7 @@ document.addEventListener("DOMContentLoaded", () => {
         input.addEventListener("change", () => {
             if (!input.checked) return;
             ensureAndSet("censureScope", input.value, false);
+            syncCensureUiState();
         });
     });
 

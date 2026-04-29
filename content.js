@@ -152,6 +152,7 @@ let profanityMinCandidateLength = 0;
 let profanityMaxCandidateLength = 0;
 let profanityTermsLoadToken = 0;
 let profanityRecapObserver = null;
+const forumSubjectThreadSnapshots = new WeakMap();
 const profanityObserverOptions = {
   childList: true,
   characterData: true,
@@ -216,6 +217,77 @@ function getProfanityChatSelector() {
   }
 
   return selectors.join(", ");
+}
+
+function isForumSubjectPage() {
+  return location.pathname.startsWith("/forum-sujet/");
+}
+
+function snapshotForumSubjectThreads(root = document) {
+  const threadGroups = Array.from(root.querySelectorAll("div[id^='REP']"));
+
+  threadGroups.forEach((threadGroup) => {
+    if (!forumSubjectThreadSnapshots.has(threadGroup)) {
+      forumSubjectThreadSnapshots.set(threadGroup, threadGroup.innerHTML);
+    }
+  });
+}
+
+function restoreForumSubjectThreads(root = document) {
+  const threadGroups = Array.from(root.querySelectorAll("div[id^='REP']"));
+
+  threadGroups.forEach((threadGroup) => {
+    const snapshot = forumSubjectThreadSnapshots.get(threadGroup);
+
+    if (typeof snapshot === "string" && threadGroup.innerHTML !== snapshot) {
+      threadGroup.innerHTML = snapshot;
+    }
+
+    delete threadGroup.dataset.tarotProfanityForumRenderedMode;
+  });
+}
+
+function renderForumSubjectDeleteThreads(root = document) {
+  const threadGroups = Array.from(root.querySelectorAll("div[id^='REP']"));
+
+  threadGroups.forEach((threadGroup) => {
+    if (threadGroup.dataset.tarotProfanityForumRenderedMode === "delete") {
+      return;
+    }
+
+    const replies = Array.from(threadGroup.children).filter((child) => child instanceof Element && child.matches(".sujetForum"));
+    let mainPostRemoved = false;
+    let promotedReplyFound = false;
+
+    replies.forEach((reply) => {
+      if (!reply.classList.contains("sujetSub")) {
+        if (containsProfanity(reply.textContent ?? "")) {
+          reply.remove();
+          mainPostRemoved = true;
+        }
+
+        return;
+      }
+
+      const bodyHtml = extractForumSubjectReplyBodyHtml(reply);
+      const bodyText = getTextContentFromHtml(bodyHtml);
+
+      if (!bodyHtml || containsProfanity(bodyText)) {
+        reply.remove();
+        return;
+      }
+
+      if (promotedReplyFound || !mainPostRemoved) {
+        return;
+      }
+
+      reply.classList.remove("sujetSub");
+      reply.innerHTML = `<p>${bodyHtml}</p>`;
+      promotedReplyFound = true;
+    });
+
+    threadGroup.dataset.tarotProfanityForumRenderedMode = "delete";
+  });
 }
 
 function getPrivateMessageBodyNodes(form) {
@@ -925,6 +997,11 @@ function processChatSegment(container, nodesToReplace) {
   }
 
   if (profanityMode === "delete") {
+    if (isForumSubjectPage() && container instanceof Element && container.matches("div.sujetForum")) {
+      container.remove();
+      return true;
+    }
+
     const marker = createProfanityMarker(serializeNodeList(nodesToReplace), {
       clickable: false,
       block: true,
@@ -1095,6 +1172,54 @@ function getCompteConversationCard(container) {
   return conversationBox?.parentElement ?? null;
 }
 
+function isForumSubjectReplyControlNode(node) {
+  return node.nodeType === Node.ELEMENT_NODE
+    && node.matches("img[onclick], a[onclick], button[onclick], input[onclick]");
+}
+
+function extractForumSubjectReplyBodyHtml(reply) {
+  const nodes = Array.from(reply.childNodes);
+  const firstBreakIndex = nodes.findIndex((node) => node.nodeType === Node.ELEMENT_NODE && node.tagName === "BR");
+
+  if (firstBreakIndex === -1) {
+    return "";
+  }
+
+  const bodyNodes = [];
+
+  for (let index = firstBreakIndex + 1; index < nodes.length; index += 1) {
+    const node = nodes[index];
+
+    if (node.nodeType === Node.TEXT_NODE) {
+      if ((node.nodeValue ?? "").trim()) {
+        bodyNodes.push(node);
+      }
+
+      continue;
+    }
+
+    if (isForumSubjectReplyControlNode(node)) {
+      continue;
+    }
+
+    if (node.nodeType === Node.ELEMENT_NODE || node.nodeType === Node.DOCUMENT_FRAGMENT_NODE) {
+      bodyNodes.push(node);
+    }
+  }
+
+  if (!bodyNodes.length) {
+    return "";
+  }
+
+  return serializeNodeList(bodyNodes).trim();
+}
+
+function getTextContentFromHtml(html) {
+  const wrapper = document.createElement("div");
+  wrapper.innerHTML = html;
+  return wrapper.textContent ?? "";
+}
+
 function processCompteConversationTooltip(container) {
   const messageContent = container.querySelector(".ui-tooltip-content");
 
@@ -1158,10 +1283,15 @@ function applyProfanityFilter() {
   profanityFilterBusy = true;
 
   try {
+    if (isForumSubjectPage()) {
+      snapshotForumSubjectThreads();
+    }
+
     if (profanityNeedsFullReset) {
       restoreProfanityMarkers();
       restoreProfanityRevealWrappers();
       restoreProfanityHiddenTooltips();
+      restoreForumSubjectThreads();
       profanityNeedsFullReset = false;
     }
 
@@ -1178,6 +1308,10 @@ function applyProfanityFilter() {
     }
 
     targets.forEach((container) => {
+      if (isForumSubjectPage() && profanityMode === "delete" && container instanceof Element && container.closest("div[id^='REP']") !== null) {
+        return;
+      }
+
       if (isCompteConversationTooltip(container)) {
         processCompteConversationTooltip(container);
         return;
@@ -1210,6 +1344,10 @@ function applyProfanityFilter() {
         processChatContainerWordScope(container, profanityMode === "mask");
       }
     });
+
+    if (isForumSubjectPage() && profanityMode === "delete") {
+      renderForumSubjectDeleteThreads();
+    }
   } finally {
     profanityFilterBusy = false;
 
