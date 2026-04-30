@@ -301,3 +301,8 @@ body.dark-mode .reload-prompt .btn-outline-secondary {
 body.dark-mode .reload-prompt .btn-outline-secondary:hover {
   background-color: rgba(255, 255, 255, 0.08);
 }
+
+body.dark-mode .btn-close {
+  filter: invert(1) grayscale(100%) brightness(200%);
+  opacity: 1;
+}
