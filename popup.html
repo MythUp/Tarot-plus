@@ -76,9 +76,14 @@
           <label class="form-check-label" for="censureScopeMessage">Message complet</label>
         </div>
 
-        <button id="manageProfanityListButton" class="btn btn-sm btn-outline-warning d-block mx-auto mt-3" type="button">
-          Afficher / gérer la liste d'insultes
-        </button>
+        <div class="d-flex justify-content-center align-items-center gap-2 mt-3">
+          <button id="manageProfanityListButton" class="btn btn-sm btn-outline-warning" type="button">
+            Gérer la liste d'insultes
+          </button>
+          <button id="addProfanityButton" class="btn btn-sm btn-outline-primary fw-bold px-3" type="button" aria-label="Ajouter une insulte">
+            +
+          </button>
+        </div>
       </div>
     </div>
 
@@ -126,7 +131,7 @@
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
         </div>
         <div class="modal-body">
-          <p class="mb-0">Cette liste contient du contenu potentiellement offensant. Voulez-vous continuer ?</p>
+          <p class="mb-0">Cette liste contient du contenu offensant. Voulez-vous continuer ?</p>
         </div>
         <div class="modal-footer">
           <button id="confirmProfanityWarningButton" type="button" class="btn btn-warning d-block mx-auto">Afficher la liste</button>
@@ -150,6 +155,26 @@
         <div class="modal-footer">
           <button id="resetProfanityListButton" type="button" class="btn btn-outline-secondary">Réinitialiser</button>
           <button id="saveProfanityListButton" type="button" class="btn btn-primary">Enregistrer</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade popup-modal" id="profanityAddModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Ajouter des insultes</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+        </div>
+        <div class="modal-body">
+          <p class="small text-muted mb-2">Une entrée par ligne.</p>
+          <textarea id="profanityAddTextarea" class="form-control profanity-list-textarea" rows="8" spellcheck="false" placeholder="Nouvelle insulte"></textarea>
+          <div id="profanityAddStatus" class="small mt-2"></div>
+        </div>
+        <div class="modal-footer">
+          <button id="cancelAddedProfanityButton" type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annuler</button>
+          <button id="saveAddedProfanityButton" type="button" class="btn btn-primary">Ajouter</button>
         </div>
       </div>
     </div>

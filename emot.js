@@ -1,3 +1,10 @@
+const emoticonScriptSrc = document.currentScript && document.currentScript.src ? document.currentScript.src : "";
+const emoticonBaseUrl = emoticonScriptSrc ? new URL("emots/", emoticonScriptSrc).href : "";
+
+function getEmoticonImageUrl(index) {
+    return `${emoticonBaseUrl}Emoticon${index}.png`;
+}
+
 emoticons['Bravo !'] = '62';
 emoticons['D\u00E9sol\u00E9...'] = '63';
 emoticons['Cadeau !'] = '64';
@@ -27,7 +34,7 @@ moteurHTML.showMessageJoueur = function (idJoueur,message) {
     
     if (emoticons[message] ) {
     //$('#divJoueur'+idJoueur).attr('title', message);
-    var newIcon = $('<img class="emotHTML" style="opacity:0;" src="https://raw.githubusercontent.com/MythUp/tarot-plus/refs/heads/main/emots/Emoticon'+emoticons[message]+'.png" />')
+    var newIcon = $('<img class="emotHTML" style="opacity:0;" src="' + getEmoticonImageUrl(emoticons[message]) + '" />')
     $('#divJoueur'+idJoueur).append(newIcon);
     
     $( newIcon ).load(function() {
@@ -89,7 +96,7 @@ moteurHTML2.showMessageJoueur = function (idJoueur,message) {
     
     if (emoticons[message] ) {
     
-    var newIcon = $('<img class="emotHTML" style="opacity:0;" src="https://raw.githubusercontent.com/MythUp/tarot-plus/refs/heads/main/emots/Emoticon'+emoticons[message]+'.png" />')
+    var newIcon = $('<img class="emotHTML" style="opacity:0;" src="' + getEmoticonImageUrl(emoticons[message]) + '" />')
     $('#divJoueur'+idJoueur).append(newIcon);
     $( newIcon ).load(function() {
     newIcon.css('margin-left',$('#divJoueur'+idJoueur).width()/2-newIcon.width()/2);

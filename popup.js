@@ -4,14 +4,21 @@ const profanityTermsResourceUrl = chrome.runtime.getURL("profanity-terms.json");
 let profanityDefaultTerms = null;
 let profanityWarningModalInstance = null;
 let profanityListModalInstance = null;
+let profanityAddModalInstance = null;
 let profanityWarningModalElement = null;
 let profanityListModalElement = null;
+let profanityAddModalElement = null;
 let profanityListTextareaElement = null;
 let profanityListStatusElement = null;
+let profanityAddTextareaElement = null;
+let profanityAddStatusElement = null;
 let profanityManageButtonElement = null;
+let profanityAddButtonElement = null;
 let profanityWarningConfirmButtonElement = null;
 let profanityListSaveButtonElement = null;
 let profanityListResetButtonElement = null;
+let profanityAddButtonSaveElement = null;
+let profanityAddButtonCancelElement = null;
 
 function isPopupModalOpen() {
     return document.querySelector(".popup-modal.show") !== null;
@@ -93,13 +100,19 @@ document.addEventListener("DOMContentLoaded", () => {
     const censureScopeInputs = Array.from(document.querySelectorAll("input[name='censureScope']"));
     const openSiteContainer = document.querySelector(".openSiteButton");
     profanityManageButtonElement = document.getElementById("manageProfanityListButton");
+    profanityAddButtonElement = document.getElementById("addProfanityButton");
     profanityWarningModalElement = document.getElementById("profanityWarningModal");
     profanityListModalElement = document.getElementById("profanityListModal");
+    profanityAddModalElement = document.getElementById("profanityAddModal");
     profanityListTextareaElement = document.getElementById("profanityListTextarea");
     profanityListStatusElement = document.getElementById("profanityListStatus");
+    profanityAddTextareaElement = document.getElementById("profanityAddTextarea");
+    profanityAddStatusElement = document.getElementById("profanityAddStatus");
     profanityWarningConfirmButtonElement = document.getElementById("confirmProfanityWarningButton");
     profanityListSaveButtonElement = document.getElementById("saveProfanityListButton");
     profanityListResetButtonElement = document.getElementById("resetProfanityListButton");
+    profanityAddButtonSaveElement = document.getElementById("saveAddedProfanityButton");
+    profanityAddButtonCancelElement = document.getElementById("cancelAddedProfanityButton");
 
     if (profanityWarningModalElement) {
         profanityWarningModalInstance = new bootstrap.Modal(profanityWarningModalElement);
@@ -109,14 +122,25 @@ document.addEventListener("DOMContentLoaded", () => {
         profanityListModalInstance = new bootstrap.Modal(profanityListModalElement);
     }
 
+    if (profanityAddModalElement) {
+        profanityAddModalInstance = new bootstrap.Modal(profanityAddModalElement);
+    }
+
     bindPopupModalScrollLock(profanityWarningModalElement);
     bindPopupModalScrollLock(profanityListModalElement);
+    bindPopupModalScrollLock(profanityAddModalElement);
     bindPopupScrollTrap();
     syncPopupScrollLock();
 
     if (profanityManageButtonElement) {
         profanityManageButtonElement.addEventListener("click", () => {
             showProfanityWarning();
+        });
+    }
+
+    if (profanityAddButtonElement) {
+        profanityAddButtonElement.addEventListener("click", () => {
+          void openProfanityAddModal();
         });
     }
 
@@ -148,6 +172,20 @@ document.addEventListener("DOMContentLoaded", () => {
     if (profanityListResetButtonElement) {
         profanityListResetButtonElement.addEventListener("click", () => {
             void resetProfanityList();
+        });
+    }
+
+    if (profanityAddButtonSaveElement) {
+        profanityAddButtonSaveElement.addEventListener("click", () => {
+            void saveAddedProfanityTerms();
+        });
+    }
+
+    if (profanityAddButtonCancelElement) {
+        profanityAddButtonCancelElement.addEventListener("click", () => {
+            if (profanityAddModalInstance) {
+                profanityAddModalInstance.hide();
+            }
         });
     }
 
@@ -387,6 +425,14 @@ async function loadEffectiveProfanityTerms() {
     ]);
 }
 
+async function loadCustomProfanityTerms() {
+    const storage = await getStorageValue(["profanityTermsCustom"]);
+
+    return Array.isArray(storage.profanityTermsCustom)
+        ? storage.profanityTermsCustom
+        : [];
+}
+
 function formatProfanityList(terms) {
     return normalizeProfanityList(terms).join("\n");
 }
@@ -423,6 +469,15 @@ function setProfanityListStatus(message, tone = "muted") {
     profanityListStatusElement.className = `small mt-2 text-${tone}`;
 }
 
+function setProfanityAddStatus(message, tone = "muted") {
+    if (!profanityAddStatusElement) {
+        return;
+    }
+
+    profanityAddStatusElement.textContent = message;
+    profanityAddStatusElement.className = `small mt-2 text-${tone}`;
+}
+
 function showProfanityWarning() {
     if (!profanityWarningModalInstance) {
         void openProfanityListManager();
@@ -446,6 +501,60 @@ async function openProfanityListManager() {
         console.error("Impossible de charger la liste d'insultes.", error);
         setProfanityListStatus("Impossible de charger la liste.", "danger");
         profanityListModalInstance.show();
+    }
+}
+
+async function openProfanityAddModal() {
+    if (!profanityAddModalInstance) {
+        return;
+    }
+
+    if (profanityAddTextareaElement) {
+        profanityAddTextareaElement.value = "";
+    }
+
+    setProfanityAddStatus("Ajoute une ou plusieurs insultes, une par ligne.");
+    profanityAddModalInstance.show();
+
+    if (profanityAddTextareaElement) {
+        setTimeout(() => profanityAddTextareaElement?.focus(), 0);
+    }
+}
+
+async function saveAddedProfanityTerms() {
+    if (!profanityAddTextareaElement) {
+        return;
+    }
+
+    try {
+        const termsToAdd = parseProfanityListInput(profanityAddTextareaElement.value);
+
+        if (!termsToAdd.length) {
+            setProfanityAddStatus("Ajoute au moins une entrée.", "warning");
+            return;
+        }
+
+        const currentCustomTerms = await loadCustomProfanityTerms();
+        const mergedTerms = normalizeProfanityList([
+            ...currentCustomTerms,
+            ...termsToAdd,
+        ]);
+        const addedCount = Math.max(mergedTerms.length - normalizeProfanityList(currentCustomTerms).length, 0);
+
+        await setStorageValue({ profanityTermsCustom: mergedTerms });
+        setProfanityAddStatus(
+            addedCount > 0
+                ? `Ajout enregistré (${addedCount} nouvelle${addedCount > 1 ? "s" : ""} entrée${addedCount > 1 ? "s" : ""}).`
+                : "Aucune nouvelle entrée à ajouter.",
+            addedCount > 0 ? "success" : "warning"
+        );
+
+        if (profanityAddModalInstance) {
+            profanityAddModalInstance.hide();
+        }
+    } catch (error) {
+        console.error("Impossible d'ajouter les insultes.", error);
+        setProfanityAddStatus("Ajout impossible.", "danger");
     }
 }
 
@@ -487,7 +596,7 @@ function loadEmoticons(disabledEmoticons) {
     carouselInner.innerHTML = "";
 
     const total = 65;
-    const perSlide = 16;
+    const perSlide = 15;
 
     for (let i = 0; i < total; i += perSlide) {
         const isActive = i === 0 ? "active" : "";
@@ -499,7 +608,7 @@ function loadEmoticons(disabledEmoticons) {
 
         for (let j = i; j < Math.min(i + perSlide, total); j++) {
             const id = `Emoticon${j}`;
-            const src = `https://raw.githubusercontent.com/MythUp/tarot-plus/refs/heads/main/emots/Emoticon${j}.png`;
+            const src = chrome.runtime.getURL(`emots/Emoticon${j}.png`);
             const img = createEmoticon(id, src, disabledEmoticons);
             wrapper.appendChild(img);
         }

@@ -1468,6 +1468,30 @@ function ensureProfanityObserver() {
   profanityObserver.observe(observerTarget, profanityObserverOptions);
 }
 
+function reapplyProfanityFilter() {
+  const shouldObserve = profanityEnabled;
+
+  profanityRefreshQueued = false;
+  profanityRefreshPending = false;
+
+  if (profanityObserver) {
+    profanityObserver.disconnect();
+    profanityObserver = null;
+  }
+
+  if (profanityRecapObserver) {
+    profanityRecapObserver.disconnect();
+    profanityRecapObserver = null;
+  }
+
+  applyProfanityFilter();
+
+  if (shouldObserve) {
+    ensureProfanityObserver();
+    ensureProfanityRecapObserver();
+  }
+}
+
 function setProfanityFilterState(enabled, mode, scope) {
   const nextEnabled = Boolean(enabled);
   const nextMode = ["mask", "hide", "delete"].includes(mode) ? mode : "mask";
@@ -1485,12 +1509,7 @@ function setProfanityFilterState(enabled, mode, scope) {
     profanityRefreshPending = false;
   }
 
-  if (profanityEnabled) {
-    ensureProfanityObserver();
-    ensureProfanityRecapObserver();
-  }
-
-  applyProfanityFilter();
+  reapplyProfanityFilter();
 
   if (!profanityEnabled && profanityObserver) {
     profanityObserver.disconnect();
@@ -1512,11 +1531,12 @@ function getEmoticonToolbar() {
 
 function generateEmoticonsHTML(disabled = {}) {
   let html = "";
+  const emoticonBaseUrl = chrome.runtime.getURL("emots/");
 
   for (let i = 0; i < 65; i++) {
     const id = `Emoticon${i}`;
     if (!disabled[id]) {
-      html += `<img onclick="sendEmot(${i});" alt="Émoticône n°${i}" src="https://raw.githubusercontent.com/MythUp/tarot-plus/refs/heads/main/emots/Emoticon${i}.png" class="emotIcon" style="margin: 0 4px;">`;
+      html += `<img onclick="sendEmot(${i});" alt="Émoticône n°${i}" src="${emoticonBaseUrl}Emoticon${i}.png" class="emotIcon" style="margin: 0 4px;">`;
     }
   }
 
@@ -2163,7 +2183,7 @@ chrome.storage.local.get(
           void loadProfanityTerms().then(() => {
             profanityNeedsFullReset = true;
             if (profanityEnabled) {
-              applyProfanityFilter();
+              reapplyProfanityFilter();
             }
           });
         }
