@@ -200,8 +200,8 @@ function splitProfanitySearchTokens(value) {
 
     tokens.push({
       end: match.index + rawToken.length,
-      hasSymbols: /[^\p{L}\p{N}]/u.test(rawToken),
       normalized: normalizedToken,
+      raw: rawToken,
       start: match.index,
     });
   }
@@ -389,18 +389,15 @@ function buildProfanityEntries(terms) {
       .map((token) => normalizeProfanityKey(token))
       .filter(Boolean);
 
-    const normalizedTerm = normalizedTokens.join("");
     const tokenCount = normalizedTokens.length;
 
     if (!tokenCount) {
       continue;
     }
 
-    const tolerance = 1;
     const entry = {
-      normalized: normalizedTerm,
       tokenCount,
-      tolerance,
+      tokens: normalizedTokens,
     };
 
     entries.push(entry);
@@ -488,38 +485,31 @@ function isProfanityWordCharacter(character) {
   return typeof character === "string" && character.length > 0 && profanityWordCharacterPattern.test(character);
 }
 
-function levenshteinWithinLimit(source, target, limit) {
-  if (Math.abs(source.length - target.length) > limit) {
+function matchesProfanityToken(candidateToken, termToken) {
+  if (!candidateToken || typeof candidateToken.raw !== "string" || typeof termToken !== "string") {
     return false;
   }
 
-  let previousRow = Array.from({ length: target.length + 1 }, (_, index) => index);
+  const candidateCharacters = Array.from(candidateToken.raw);
+  const termCharacters = Array.from(termToken);
 
-  for (let sourceIndex = 0; sourceIndex < source.length; sourceIndex += 1) {
-    const sourceCharacter = source[sourceIndex];
-    const currentRow = [sourceIndex + 1];
-    let rowMinimum = currentRow[0];
-
-    for (let targetIndex = 0; targetIndex < target.length; targetIndex += 1) {
-      const targetCharacter = target[targetIndex];
-      const substitutionCost = sourceCharacter === targetCharacter ? 0 : 1;
-      const deletionCost = previousRow[targetIndex + 1] + 1;
-      const insertionCost = currentRow[targetIndex] + 1;
-      const substitutionOrMatchCost = previousRow[targetIndex] + substitutionCost;
-      const currentDistance = Math.min(deletionCost, insertionCost, substitutionOrMatchCost);
-
-      currentRow.push(currentDistance);
-      rowMinimum = Math.min(rowMinimum, currentDistance);
-    }
-
-    if (rowMinimum > limit) {
-      return false;
-    }
-
-    previousRow = currentRow;
+  if (candidateCharacters.length !== termCharacters.length) {
+    return false;
   }
 
-  return previousRow[target.length] <= limit;
+  for (let index = 0; index < candidateCharacters.length; index += 1) {
+    const normalizedCharacter = normalizeProfanityKey(candidateCharacters[index]);
+
+    if (!normalizedCharacter) {
+      continue;
+    }
+
+    if (normalizedCharacter !== termCharacters[index]) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 function mergeProfanityMatchSpans(spans) {
@@ -574,16 +564,19 @@ function getProfanityMatchSpans(value) {
       const endIndex = startIndex + length;
       const candidateTokens = tokens.slice(startIndex, endIndex);
       const candidate = candidateTokens.map((token) => token.normalized).join("");
-      const candidateHasSymbols = candidateTokens.some((token) => token.hasSymbols);
 
       if (!candidate || profanityWhitelist.has(candidate)) {
         continue;
       }
 
       for (const term of candidateEntries) {
-        const allowedDistance = candidate === term.normalized ? 0 : candidateHasSymbols ? term.tolerance : 0;
+        if (term.tokenCount !== length) {
+          continue;
+        }
 
-        if (levenshteinWithinLimit(term.normalized, candidate, allowedDistance)) {
+        const matches = candidateTokens.every((candidateToken, tokenIndex) => matchesProfanityToken(candidateToken, term.tokens[tokenIndex]));
+
+        if (matches) {
           spans.push({
             end: candidateTokens[candidateTokens.length - 1].end,
             start: candidateTokens[0].start,
